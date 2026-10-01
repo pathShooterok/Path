@@ -1,0 +1,29 @@
+{
+    "test_domains": [
+        "example.com",
+        "example.org",
+        "example.net",
+        "localhost"
+    ],
+    "technical_prefixes": [
+        "admin",
+        "administrator",
+        "support",
+        "help",
+        "info",
+        "contact",
+        "hello",
+        "office",
+        "sales",
+        "billing",
+        "security",
+        "abuse",
+        "webmaster",
+        "postmaster",
+        "hostmaster",
+        "noreply",
+        "no-reply",
+        "donotreply",
+        "do-not-reply"
+    ]
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+
+.venv/
+venv/
+.env
+*.log
+
+results/*
+
+*_debug.html
+debug_*.py
