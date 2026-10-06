@@ -1,119 +1,72 @@
 import base64
-from urllib.parse import urlparse, parse_qs
-from urllib.parse import quote_plus
-from urllib.request import Request, urlopen
-from html import unescape
 import re
+from html import unescape
+from urllib.parse import parse_qs, quote_plus, urlparse
 
+from core.http import fetch, decode_body
 
 TAG_RE = re.compile(r"<[^>]+>")
+BLOCK_RE = re.compile(r'<li[^>]*class="[^"]*\bb_algo\b[^"]*"[^>]*>.*?</li>', re.I | re.S)
+LINK_RE = re.compile(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', re.I | re.S)
+SNIPPET_RE = re.compile(r'<p[^>]*>(.*?)</p>', re.I | re.S)
 
 
 def clean_html(text: str) -> str:
-    text = TAG_RE.sub("", text)
-    return unescape(text).strip()
+    return unescape(TAG_RE.sub("", text)).strip()
 
 
-def search_bing(target: str, limit: int = 10) -> list[dict]:
-    query = quote_plus(f'"{target}"')
-    search_url = f"https://www.bing.com/search?q={query}"
-
-    request = Request(
-        search_url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/136.0.0.0 Safari/537.36"
-            )
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=10) as response:
-            html = response.read().decode(
-                "utf-8",
-                errors="ignore",
-            )
-    except Exception as error:
-        print(f"[-] Bing request failed: {error}")
-        return []
-
-    print(f"[*] Bing HTML received: {len(html)} chars")
-
-    blocks = re.findall(
-        r'<li[^>]*class="[^"]*\bb_algo\b[^"]*"[^>]*>.*?</li>',
-        html,
-        re.IGNORECASE | re.DOTALL,
-    )
-
-    results = []
-
-    for block in blocks:
-        match = re.search(
-            r'<h2[^>]*>\s*'
-            r'<a[^>]+href="([^"]+)"[^>]*>'
-            r'(.*?)'
-            r'</a>',
-            block,
-            re.IGNORECASE | re.DOTALL,
-        )
-
-        if not match:
-            continue
-
-        url = unescape(match.group(1))
-        url = decode_bing_url(url)
-        title = clean_html(match.group(2))
-        
-
-        if not url.startswith(("http://", "https://")):
-            continue
-
-        if not title:
-            continue
-
-        target_lower = target.lower()
-
-        if target_lower not in title.lower() and target_lower not in url.lower():
-            continue
-
-        results.append(
-            {
-                "title": title,
-                "url": url,
-                
-            }
-            
-        )
-
-        if len(results) >= limit:
-            break
-
-    return results
 def decode_bing_url(url: str) -> str:
     try:
-        parsed = urlparse(url)
-        params = parse_qs(parsed.query)
-
-        encoded = params.get("u", [None])[0]
-
+        encoded = parse_qs(urlparse(url).query).get("u", [None])[0]
         if not encoded:
             return url
-
         if encoded.startswith("a1"):
             encoded = encoded[2:]
-
-        padding = "=" * (-len(encoded) % 4)
         decoded = base64.urlsafe_b64decode(
-            encoded + padding
+            encoded + "=" * (-len(encoded) % 4)
         ).decode("utf-8", errors="ignore")
-
         if decoded.startswith(("http://", "https://")):
             return decoded
-
     except Exception:
         pass
-
     return url
+
+
+def search_bing(query: str, limit: int = 10, target: str | None = None,
+                require_target_match: bool = False) -> list[dict]:
+    url = f"https://www.bing.com/search?q={quote_plus(query)}&count={max(limit, 10)}&setlang=en"
+    response = fetch(url)
+    if not response["ok"]:
+        print(f"[-] Bing request failed: {response['error']}")
+        return []
+
+    html = decode_body(response)
+    blocks = BLOCK_RE.findall(html)
+    if not blocks:
+        print(f"[-] Bing: no results parsed ({len(html)} chars; captcha or layout change?)")
+        return []
+
+    results = []
+    for block in blocks:
+        m = LINK_RE.search(block)
+        if not m:
+            continue
+        href = decode_bing_url(unescape(m.group(1)))
+        title = clean_html(m.group(2))
+        if not href.startswith(("http://", "https://")) or not title:
+            continue
+
+        if require_target_match and target:
+            t = target.lower()
+            if t not in title.lower() and t not in href.lower():
+                continue
+
+        snippet = ""
+        sm = SNIPPET_RE.search(block)
+        if sm:
+            snippet = clean_html(sm.group(1))
+
+        results.append({"title": title, "url": href, "snippet": snippet, "source": "bing"})
+        if len(results) >= limit:
+            break
+    return results

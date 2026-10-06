@@ -8,17 +8,25 @@ DATA_FILE = (
     / "mail_providers.json"
 )
 
+_PROVIDERS_CACHE: dict[str, list[str]] | None = None
+
 
 def load_providers() -> dict[str, list[str]]:
+    global _PROVIDERS_CACHE
+    if _PROVIDERS_CACHE is not None:
+        return _PROVIDERS_CACHE
+
     if not DATA_FILE.exists():
-        return {}
+        _PROVIDERS_CACHE = {}
+        return _PROVIDERS_CACHE
 
     with open(
         DATA_FILE,
         "r",
         encoding="utf-8",
     ) as file:
-        return json.load(file)
+        _PROVIDERS_CACHE = json.load(file)
+    return _PROVIDERS_CACHE
 
 
 def identify_provider(email: str) -> str:

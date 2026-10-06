@@ -8,20 +8,28 @@ DATA_FILE = (
     / "email_filters.json"
 )
 
+_FILTERS_CACHE: dict | None = None
+
 
 def load_filters() -> dict:
+    global _FILTERS_CACHE
+    if _FILTERS_CACHE is not None:
+        return _FILTERS_CACHE
+
     if not DATA_FILE.exists():
-        return {
+        _FILTERS_CACHE = {
             "test_domains": [],
             "technical_prefixes": [],
         }
+        return _FILTERS_CACHE
 
     with open(
         DATA_FILE,
         "r",
         encoding="utf-8",
     ) as file:
-        return json.load(file)
+        _FILTERS_CACHE = json.load(file)
+    return _FILTERS_CACHE
 
 
 def classify_email(email: str) -> str:

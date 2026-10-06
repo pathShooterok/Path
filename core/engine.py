@@ -1,7 +1,10 @@
+from urllib.parse import urlparse, urlunparse
+
 from core.models import Finding, new_report
 
-from sources.web import search_public_web, fetch_url
-from sources.bing import search_bing
+from core.config import get_config
+from sources import run_search
+from sources.web import fetch_url
 
 from extractors.email import extract_emails
 from extractors.links import extract_links
@@ -9,6 +12,13 @@ from extractors.metadata import extract_metadata
 from extractors.mail_provider import identify_provider
 from extractors.email_classification import classify_email
 from extractors.link_filter import is_interesting_link
+from extractors.social import (
+    extract_social_profiles,
+    find_social_in_text,
+    match_level,
+    match_at_least,
+    confidence_for,
+)
 from extractors.public_identity import (
     extract_visible_text,
     extract_text_blocks,
@@ -19,16 +29,49 @@ from extractors.public_identity import (
 )
 
 
+def _normalize_url(url: str) -> str:
+    """Normalize URL for deduplication: lowercase scheme/host, remove default ports,
+    remove fragment. Preserve path and query exactly as-is."""
+    try:
+        parsed = urlparse(url)
+        scheme = parsed.scheme.lower()
+        netloc = parsed.netloc.lower()
+        # Remove default ports (handle IPv6: [::1]:80 -> [::1])
+        if netloc.startswith("["):
+            # IPv6: [host]:port
+            if scheme == "http" and netloc.endswith("]:80"):
+                netloc = netloc[:-4] + "]"
+            elif scheme == "https" and netloc.endswith("]:443"):
+                netloc = netloc[:-5] + "]"
+        else:
+            # IPv4 or hostname
+            if (scheme == "http" and netloc.endswith(":80")) or (scheme == "https" and netloc.endswith(":443")):
+                netloc = netloc.rsplit(":", 1)[0]
+        # Preserve path exactly (including trailing slash)
+        path = parsed.path
+        # Preserve query exactly (no sorting)
+        query = parsed.query
+        # Reconstruct without fragment
+        normalized = urlunparse((scheme, netloc, path, parsed.params, query, ""))
+        return normalized
+    except Exception:
+        return url
+
+
 def _add_finding(report, finding):
     for existing in report.findings:
         if finding.kind == "email" and existing.kind == "email":
             if existing.value.lower() == finding.value.lower():
                 return
 
+        # Normalize source URLs for link/web_result deduplication
+        existing_source_norm = _normalize_url(existing.source) if existing.source else existing.source
+        finding_source_norm = _normalize_url(finding.source) if finding.source else finding.source
+
         if (
             existing.kind == finding.kind
             and existing.value == finding.value
-            and existing.source == finding.source
+            and existing_source_norm == finding_source_norm
         ):
             return
 
@@ -189,79 +232,135 @@ def _add_identity_findings(
             ),
         )
 
-    social_links = extract_social_links(links)
+    _add_social_findings(report, links, source, source_type, linked=linked)
 
-    for social in social_links:
-        kind = "linked_social" if linked else "social"
+
+def _add_social_findings(report, links, source, source_type, linked=False, target=None):
+    profiles = extract_social_profiles(links)
+    kind = "linked_social" if linked else "social"
+
+    for profile in profiles:
+        level = match_level(profile["username"], target) if target else "none"
+        evidence = "Public social-media profile link extracted from page"
+        confidence = "high"
+        if target:
+            evidence = f"Profile username '{profile['username']}' vs target: {level}"
+            confidence = confidence_for(level) if level != "none" else "low"
 
         _add_finding(
             report,
             Finding(
                 kind=kind,
-                value=f"{social['platform']}: {social['url']}",
+                value=f"{profile['platform']}: {profile['url']}",
                 source=source,
-                evidence="Public social-media profile link extracted from page",
-                confidence="high",
+                evidence=evidence,
+                confidence=confidence,
                 source_type=source_type,
             ),
         )
 
+    return profiles
 
-def run_trace(target: str):
+
+def _analyze_page(report, html, url, source_type, confidence, linked):
+    """Metadata, emails, links and identity for one fetched HTML page."""
+    _add_metadata_findings(report, extract_metadata(html), url, source_type, confidence, linked=linked)
+    _add_email_findings(report, extract_emails(html), url, source_type, confidence, linked=linked)
+    page_links = extract_links(html, url)
+    _add_identity_findings(report, html, page_links, url, source_type, confidence, linked=linked)
+    return page_links
+
+
+def run_trace(target: str, only_sources: list[str] | None = None):
+    cfg = get_config()
+    trace_cfg = cfg["trace"]
     report = new_report(target)
 
-    print(f"[*] Searching public web for: {target}")
+    print(f"[*] Tracing: {target}")
 
-    pages = search_public_web(target)
+    queries = [q.replace("{target}", target) for q in trace_cfg["queries"]]
+    results = run_search(target, queries, only=only_sources)
 
-    for page in pages:
-        text = page.get("text", "")
-        source = page.get("url", "")
+    profiles = []  # (match_level, profile)
 
-        if not text:
-            continue
+    for result in results:
+        url, title, snippet = result["url"], result["title"], result.get("snippet", "")
 
-        emails = extract_emails(text)
-
-        _add_email_findings(
-            report,
-            emails,
-            source,
-            "search_engine",
-            "high",
-        )
-
-    print("[*] Searching Bing...")
-
-    bing_results = search_bing(target)
-
-    for result in bing_results:
         _add_finding(
             report,
             Finding(
                 kind="web_result",
-                value=result["title"],
-                source=result["url"],
-                evidence=f"Search result returned for identifier: {target}",
+                value=title,
+                source=url,
+                evidence=f"Search result ({result['source']}) for: {target}",
                 confidence="medium",
                 source_type="search_engine",
             ),
         )
 
+        # emails visible in the search snippet itself
+        _add_email_findings(
+            report, extract_emails(f"{title} {snippet}"),
+            url, "search_engine", "medium",
+        )
+
+        # social profiles: the result URL itself and links mentioned in the snippet
+        candidates = [url] + [p["found_as"] for p in find_social_in_text(snippet)]
+        for profile in _add_social_findings(
+            report, candidates, url, "search_engine", target=target
+        ):
+            level = match_level(profile["username"], target)
+            profiles.append((level, profile))
+
+    if trace_cfg["scan_social_profiles"]:
+        _scan_profiles(report, target, profiles, trace_cfg)
+
     return report
 
 
-def scan_linked_pages(links: list[str], max_links: int = 10):
-    results = []
-    seen = set()
+def _scan_profiles(report, target, profiles, trace_cfg):
+    """Fetch the best-matching public profile pages and extract bio/email/links."""
+    minimum = trace_cfg["min_profile_match"]
+    rank = {"exact": 0, "normalized": 1, "partial": 2}
+    chosen, seen = [], set()
 
-    for link in links:
-        if link in seen:
+    for level, profile in sorted(profiles, key=lambda x: rank.get(x[0], 9)):
+        if not match_at_least(level, minimum) or profile["url"] in seen:
+            continue
+        seen.add(profile["url"])
+        chosen.append(profile)
+        if len(chosen) >= trace_cfg["max_profiles"]:
+            break
+
+    for profile in chosen:
+        print(f"[*] Reading profile: {profile['platform']} / {profile['username']}")
+        page = fetch_url(profile["url"])
+        if page.get("error") or not page.get("text"):
+            print(f"[-] Profile not readable: {page.get('error') or 'empty'}")
+            continue
+        if "text/html" not in page.get("content_type", "").lower():
             continue
 
-        seen.add(link)
+        final_url = page.get("final_url", profile["url"])
+        _analyze_page(report, page["text"], final_url, "social_profile", "medium", linked=True)
 
-        if not is_interesting_link(link):
+
+def scan_linked_pages(links: list[str], max_links: int | None = None, seen: set | None = None,
+                      always: set | None = None):
+    results = []
+    if max_links is None:
+        max_links = get_config()["scan"]["max_linked_pages"]
+    if seen is None:
+        seen = set()
+
+    for link in links:
+        norm_link = _normalize_url(link)
+        if norm_link in seen:
+            continue
+
+        seen.add(norm_link)
+
+        if not (always and link in always) and not is_interesting_link(link):
             continue
 
         if len(results) >= max_links:
@@ -385,50 +484,20 @@ def run_url_scan(url: str):
         "medium",
     )
 
-    linked_pages = scan_linked_pages(
-        links,
-        max_links=10,
-    )
+    # Pre-populate seen with the main URL to avoid re-scanning it
+    seen = {_normalize_url(final_url)}
+
+    always = set()
+    if get_config()["scan"]["follow_social_links"]:
+        # social profile links bypass the keyword filter (they never contain /about etc.)
+        always = {p["found_as"] for p in extract_social_profiles(links)}
+
+    linked_pages = scan_linked_pages(links, seen=seen, always=always)
 
     for linked_page in linked_pages:
-        linked_url = linked_page["url"]
-        linked_html = linked_page["html"]
-
-        linked_metadata = extract_metadata(linked_html)
-
-        _add_metadata_findings(
-            report,
-            linked_metadata,
-            linked_url,
-            "linked_page",
-            "medium",
-            linked=True,
-        )
-
-        linked_emails = extract_emails(linked_html)
-
-        _add_email_findings(
-            report,
-            linked_emails,
-            linked_url,
-            "linked_page",
-            "medium",
-            linked=True,
-        )
-
-        linked_links = extract_links(
-            linked_html,
-            linked_url,
-        )
-
-        _add_identity_findings(
-            report,
-            linked_html,
-            linked_links,
-            linked_url,
-            "linked_page",
-            "medium",
-            linked=True,
+        _analyze_page(
+            report, linked_page["html"], linked_page["url"],
+            "linked_page", "medium", linked=True,
         )
 
     return report

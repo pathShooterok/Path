@@ -1,0 +1,23 @@
+{
+  "sources": {
+    "order": ["duckduckgo", "bing", "google"],
+    "delay_between": 1.0,
+    "duckduckgo": { "enabled": true, "limit": 10 },
+    "bing": { "enabled": true, "limit": 10, "require_target_match": false },
+    "google": { "enabled": false, "limit": 10 }
+  },
+  "trace": {
+    "queries": ["\"{target}\"", "\"{target}\" email OR contact OR @"],
+    "scan_social_profiles": true,
+    "max_profiles": 5,
+    "min_profile_match": "normalized"
+  },
+  "scan": {
+    "max_linked_pages": 10,
+    "follow_social_links": true
+  },
+  "http": {
+    "timeout": 10,
+    "retries": 2
+  }
+}
