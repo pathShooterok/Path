@@ -1,51 +1,39 @@
-from urllib.parse import quote_plus
-from urllib.request import Request, urlopen
+import re
+from html import unescape
+from urllib.parse import parse_qs, quote_plus, urlparse
+
+from core.http import fetch, decode_body
+
+TAG_RE = re.compile(r"<[^>]+>")
+RESULT_RE = re.compile(
+    r'<a[^>]+href="(/url\?[^"]+|https?://[^"]+)"[^>]*>\s*<h3[^>]*>(.*?)</h3>', re.I | re.S
+)
+BLOCK_MARKERS = (
+    "detected unusual traffic",
+    "Если у вас возникли проблемы с доступом к Google Поиску",
+    "enablejs",
+    "/sorry/index",
+)
 
 
-def search_google(target: str, limit: int = 10) -> list[dict]:
-    query = quote_plus(f'"{target}"')
-    search_url = f"https://www.google.com/search?q={query}"
-
-    request = Request(
-        search_url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/136.0.0.0 Safari/537.36"
-            )
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=10) as response:
-            html = response.read().decode(
-                "utf-8",
-                errors="ignore",
-            )
-
-    except Exception as error:
-        print(f"[-] Google request failed: {error}")
+def search_google(query: str, limit: int = 10, **_) -> list[dict]:
+    response = fetch(f"https://www.google.com/search?q={quote_plus(query)}&num={limit}&hl=en")
+    if not response["ok"]:
+        print(f"[-] Google request failed: {response['error']}")
         return []
 
-    # Google вернул страницу с сообщением об ошибке/ограничении.
-    if "Если у вас возникли проблемы с доступом к Google Поиску" in html:
-        print("[-] Google returned an access/problem page.")
-        return []
+    html = decode_body(response)
+    results = []
+    for href, title in RESULT_RE.findall(html):
+        href = unescape(href)
+        if href.startswith("/url?"):
+            href = parse_qs(urlparse(href).query).get("q", [""])[0]
+        title = unescape(TAG_RE.sub("", title)).strip()
+        if href.startswith(("http://", "https://")) and title and "google." not in urlparse(href).netloc:
+            results.append({"title": title, "url": href, "snippet": "", "source": "google"})
+        if len(results) >= limit:
+            break
 
-    if "Our systems have detected unusual traffic" in html:
-        print("[-] Google returned an unusual-traffic page.")
-        return []
-
-    if "detected unusual traffic" in html.lower():
-        print("[-] Google returned an unusual-traffic page.")
-        return []
-
-    print(f"[*] Google HTML received: {len(html)} chars")
-
-    # Пока только диагностика.
-    # Парсер результатов добавим после определения
-    # фактической структуры страницы результатов.
-
-    return []
+    if not results and any(marker in html for marker in BLOCK_MARKERS):
+        print("[-] Google returned a bot-check / JS-only page.")
+    return results

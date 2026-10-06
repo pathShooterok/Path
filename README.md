@@ -126,6 +126,28 @@ It can also follow selected links and scan them.
 
 Because apparently opening one webpage wasn't enough.
 
+## Config
+
+`config.json` (all keys optional, missing ones fall back to defaults in `core/config.py`):
+
+- `sources.order` / `sources.<name>.enabled|limit` — which search engines run and in what order
+- `trace.queries` — search queries, `{target}` is substituted
+- `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
+- `scan.max_linked_pages`, `scan.follow_social_links`
+- `http.timeout|retries|backoff|user_agents`
+
+CLI: `--config FILE`, `--json FILE|-`, `--no-profiles`, `trace --sources duckduckgo,bing`.
+
+Google is disabled by default: it almost always serves a JS-only page to non-browser clients.
+
+## Social profile parser
+
+`extractors/social.py` recognises ~20 platforms (GitHub, GitLab, X, Telegram, VK, YouTube, TikTok,
+Instagram, Reddit, Steam, Habr, ...), filters out non-profile pages (`/login`, `/status/..`, repos),
+canonicalises URLs and scores how close the profile username is to the traced target.
+
+Tests: `python tests/test_social.py && python tests/test_sources.py`
+
 ## Help
 
 ```bash

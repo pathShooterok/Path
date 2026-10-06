@@ -46,23 +46,6 @@ NAME_STOPWORDS = {
 }
 
 
-SOCIAL_PLATFORMS = {
-    "github.com": "GitHub",
-    "youtube.com": "YouTube",
-    "youtu.be": "YouTube",
-    "twitch.tv": "Twitch",
-    "tiktok.com": "TikTok",
-    "vk.com": "VK",
-    "vk.ru": "VK",
-    "instagram.com": "Instagram",
-    "x.com": "X",
-    "twitter.com": "X",
-    "reddit.com": "Reddit",
-    "t.me": "Telegram",
-    "telegram.me": "Telegram",
-}
-
-
 class VisibleTextParser(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -186,40 +169,9 @@ def extract_name_candidates(text: str) -> list[str]:
 
 
 def extract_social_links(links: list[str]) -> list[dict]:
-    results = []
-    seen = set()
-
-    for link in links:
-        try:
-            parsed = urlparse(link)
-        except Exception:
-            continue
-
-        host = parsed.netloc.lower().split(":", 1)[0]
-
-        if host.startswith("www."):
-            host = host[4:]
-
-        platform = SOCIAL_PLATFORMS.get(host)
-
-        if not platform:
-            continue
-
-        key = link.lower()
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        results.append(
-            {
-                "platform": platform,
-                "url": link,
-            }
-        )
-
-    return results
+    """Kept for backwards compatibility; see extractors.social."""
+    from extractors.social import extract_social_profiles
+    return extract_social_profiles(links)
 
 
 def _collect_json_names(value, results):

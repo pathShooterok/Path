@@ -32,11 +32,16 @@ def print_report(report):
         return
 
     regular_findings = []
+    social_profiles = []
     personal_emails = []
     technical_emails = []
     test_emails = []
 
     for finding in report.findings:
+        if finding.kind in ("social", "linked_social"):
+            social_profiles.append(finding)
+            continue
+
         if finding.kind != "email":
             regular_findings.append(finding)
             continue
@@ -52,6 +57,17 @@ def print_report(report):
 
         else:
             regular_findings.append(finding)
+
+    if social_profiles:
+        rank = {"high": 0, "medium": 1, "low": 2}
+        social_profiles.sort(key=lambda f: rank.get(f.confidence, 3))
+        print("\nSOCIAL PROFILES")
+        print("────────────────────────────────────────")
+
+        for finding in social_profiles:
+            print(f"\n[{finding.confidence.upper()}] {finding.value}")
+            print(f"  Source:      {finding.source}")
+            print(f"  Evidence:    {finding.evidence}")
 
     if personal_emails:
         print("\nPERSONAL CANDIDATES")
