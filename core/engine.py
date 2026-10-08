@@ -15,6 +15,7 @@ from extractors.email_classification import classify_email
 from extractors.link_filter import is_interesting_link
 from extractors.social import (
     extract_social_profiles,
+    parse_social_url,
     find_social_in_text,
     match_level,
     _norm,
@@ -234,11 +235,22 @@ def _add_identity_findings(
             ),
         )
 
-    _add_social_findings(report, links, source, source_type, linked=linked)
+    _add_social_findings(report, links, source, source_type, linked=linked, outbound_only=True)
 
 
-def _add_social_findings(report, links, source, source_type, linked=False, target=None):
+MAX_SOCIAL_PER_PAGE = 20
+
+
+def _add_social_findings(report, links, source, source_type, linked=False, target=None,
+                         outbound_only=False):
     profiles = extract_social_profiles(links)
+
+    # On a profile page, links to the same platform are site navigation and
+    # sidebar users, not the person's other accounts: keep only outbound ones.
+    own = parse_social_url(source) if outbound_only else None
+    if own:
+        profiles = [p for p in profiles if p["platform"] != own["platform"]]
+    profiles = profiles[:MAX_SOCIAL_PER_PAGE]
     kind = "linked_social" if linked else "social"
 
     for profile in profiles:
@@ -350,7 +362,8 @@ def _probe_known_platforms(report, target):
                     f"Profile '{profile['username']}' exists; spelling variant of '{target}', "
                     "may be a different person"
                     if variant else
-                    f"Profile page exists for username '{target}'"
+                    f"Profile page exists for username '{target}' "
+                    "(existence only: not verified to be the same person)"
                 ),
                 confidence="low" if variant else "medium",
                 source_type="profile_probe",

@@ -93,6 +93,23 @@ class Sources(unittest.TestCase):
         self.assertIn(("linked_social", "X: https://x.com/bobatw"), kinds)
 
 
+class Extractors(unittest.TestCase):
+    def test_email_ignores_asset_names(self):
+        from extractors.email import extract_emails
+        text = ('<img src="images/badges/install-badge-linux-168-56@2x.png"> '
+                'logo@3x.webp icon@2x.svg mail: real.person@example.org, other@mail.ru.')
+        self.assertEqual(extract_emails(text), ["other@mail.ru", "real.person@example.org"])
+
+    def test_same_platform_links_dropped_on_profile_page(self):
+        rep = engine.new_report("x")
+        links = ["https://github.com/contact", "https://github.com/pricing",
+                 "https://github.com/x", "https://t.me/x_chan", "https://x.com/someone"]
+        engine._add_social_findings(rep, links, "https://github.com/x", "profile_probe", linked=True,
+                                    outbound_only=True)
+        vals = {f.value for f in rep.findings}
+        self.assertEqual(vals, {"Telegram: https://t.me/x_chan", "X: https://x.com/someone"})
+
+
 class Probes(unittest.TestCase):
     def setUp(self):
         load_config()
