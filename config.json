@@ -16,7 +16,8 @@
   "profiles": {
     "enabled": true,
     "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
-    "github_api": true
+    "github_api": true,
+    "try_variants": true
   },
   "scan": {
     "max_linked_pages": 10,

@@ -339,18 +339,34 @@ def _probe_known_platforms(report, target):
     found = probe_profiles(target)
 
     for profile in found:
+        variant = profile.get("variant")
         _add_finding(
             report,
             Finding(
                 kind="social",
                 value=f"{profile['platform']}: {profile['url']}",
                 source=profile["url"],
-                evidence=f"Profile page exists for username '{target}' (HTTP 200)",
-                confidence="medium",
+                evidence=(
+                    f"Profile '{profile['username']}' exists; spelling variant of '{target}', "
+                    "may be a different person"
+                    if variant else
+                    f"Profile page exists for username '{target}'"
+                ),
+                confidence="low" if variant else "medium",
                 source_type="profile_probe",
             ),
         )
-        _analyze_page(report, profile["html"], profile["url"], "profile_probe", "medium", linked=True)
+        if profile.get("name"):
+            _add_finding(
+                report,
+                Finding(kind="name", value=profile["name"], source=profile["url"],
+                        evidence=f"Display name from {profile['platform']} public profile",
+                        confidence="low" if variant else "medium",
+                        source_type="profile_probe"),
+            )
+        if profile.get("html"):
+            _analyze_page(report, profile["html"], profile["url"], "profile_probe",
+                          "low" if variant else "medium", linked=True)
 
         if profile["platform"] == "GitHub" and get_config()["profiles"]["github_api"]:
             _add_github_api_findings(report, profile["username"], profile["url"])

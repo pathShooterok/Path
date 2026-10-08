@@ -46,6 +46,8 @@ DEFAULTS = {
         "enabled": True,
         "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
         "github_api": True,
+        # also try boba_1 -> boba-1 / boba1 on platforms where the exact nick is invalid or missing
+        "try_variants": True,
     },
     "scan": {
         "max_linked_pages": 10,

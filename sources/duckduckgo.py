@@ -42,6 +42,12 @@ def search_duckduckgo(query: str, limit: int = 10, **_) -> list[dict]:
         print("[-] DuckDuckGo returned a bot-check page.")
         return []
 
+    if "result__a" not in html:
+        no_results = "no results" in html.lower() or "нет результатов" in html.lower()
+        print("[*] DuckDuckGo: no results for this query." if no_results
+              else f"[-] DuckDuckGo: unexpected page ({len(html)} chars), likely blocked.")
+        return []
+
     # snippets come in the same order as titles
     snippets = [_clean(s) for s in SNIPPET_RE.findall(html)]
     results = []

@@ -117,6 +117,30 @@ class Probes(unittest.TestCase):
              mock.patch("sources.profiles.time.sleep"):
             self.assertEqual(profiles.probe_profiles("bad name!"), [])
 
+    def test_variants_and_gitlab_api(self):
+        from sources import profiles
+
+        self.assertEqual(profiles.username_variants("boba_40404"),
+                         ["boba_40404", "boba-40404", "boba40404"])
+
+        def fake_fetch(url, headers=None, timeout=None):
+            if "github.com/boba-40404" in url:
+                return {**fake(b"<html>ok</html>"), "final_url": url}
+            if "api/v4/users?username=boba_40404" in url:
+                return fake(b'[{"username": "boba_40404", "name": "Boba", "web_url": "https://gitlab.com/boba_40404"}]')
+            if "api/v4/users" in url:
+                return fake(b"[]")
+            return {"ok": False, "status": 404, "final_url": url, "headers": {},
+                    "data": b"", "truncated": False, "error": "HTTP 404"}
+
+        with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
+             mock.patch("sources.profiles.time.sleep"):
+            r = {p["platform"]: p for p in profiles.probe_profiles("boba_40404")}
+        self.assertTrue(r["GitHub"]["variant"])          # underscore invalid on GitHub -> boba-40404
+        self.assertEqual(r["GitHub"]["username"], "boba-40404")
+        self.assertFalse(r["GitLab"]["variant"])
+        self.assertEqual(r["GitLab"]["name"], "Boba")
+
 
 if __name__ == "__main__":
     unittest.main()
