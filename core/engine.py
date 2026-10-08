@@ -5,6 +5,7 @@ from core.models import Finding, new_report
 from core.config import get_config
 from sources import run_search
 from sources.web import fetch_url
+from sources.profiles import probe_profiles, github_api
 
 from extractors.email import extract_emails
 from extractors.links import extract_links
@@ -16,6 +17,7 @@ from extractors.social import (
     extract_social_profiles,
     find_social_in_text,
     match_level,
+    _norm,
     match_at_least,
     confidence_for,
 )
@@ -283,8 +285,19 @@ def run_trace(target: str, only_sources: list[str] | None = None):
 
     profiles = []  # (match_level, profile)
 
+    if cfg["profiles"]["enabled"]:
+        _probe_known_platforms(report, target)
+
+    norm_target = _norm(target)
+    dropped = 0
+
     for result in results:
         url, title, snippet = result["url"], result["title"], result.get("snippet", "")
+
+        if trace_cfg["require_target_in_result"] and len(norm_target) >= 3:
+            if norm_target not in _norm(f"{url} {title} {snippet}"):
+                dropped += 1
+                continue
 
         _add_finding(
             report,
@@ -312,10 +325,63 @@ def run_trace(target: str, only_sources: list[str] | None = None):
             level = match_level(profile["username"], target)
             profiles.append((level, profile))
 
+    if dropped:
+        print(f"[*] Dropped {dropped} search results that do not mention the target")
+
     if trace_cfg["scan_social_profiles"]:
         _scan_profiles(report, target, profiles, trace_cfg)
 
     return report
+
+
+def _probe_known_platforms(report, target):
+    print(f"[*] Probing known platforms for username: {target}")
+    found = probe_profiles(target)
+
+    for profile in found:
+        _add_finding(
+            report,
+            Finding(
+                kind="social",
+                value=f"{profile['platform']}: {profile['url']}",
+                source=profile["url"],
+                evidence=f"Profile page exists for username '{target}' (HTTP 200)",
+                confidence="medium",
+                source_type="profile_probe",
+            ),
+        )
+        _analyze_page(report, profile["html"], profile["url"], "profile_probe", "medium", linked=True)
+
+        if profile["platform"] == "GitHub" and get_config()["profiles"]["github_api"]:
+            _add_github_api_findings(report, profile["username"], profile["url"])
+
+
+def _add_github_api_findings(report, username, url):
+    data = github_api(username)
+    if not data:
+        return
+
+    def add(kind, value, evidence, confidence="high"):
+        if value:
+            _add_finding(report, Finding(kind=kind, value=value, source=url,
+                                         evidence=evidence, confidence=confidence,
+                                         source_type="github_api"))
+
+    add("name", data.get("name"), "Name from public GitHub profile")
+    add("text", data.get("bio"), "Bio from public GitHub profile", "medium")
+    add("text", data.get("location"), "Location from public GitHub profile", "medium")
+    add("text", data.get("company"), "Company from public GitHub profile", "medium")
+    if data.get("twitter_username"):
+        _add_social_findings(report, [f"https://x.com/{data['twitter_username']}"],
+                             url, "github_api", linked=True)
+    if data.get("blog"):
+        blog = data["blog"] if data["blog"].startswith("http") else "https://" + data["blog"]
+        add("link", blog, "Website from public GitHub profile", "high")
+    # only an address the user chose to publish on their profile
+    if data.get("email"):
+        _add_email_findings(report, [data["email"]], url, "github_api", "high")
+    if data.get("bio"):
+        _add_email_findings(report, extract_emails(data["bio"]), url, "github_api", "high")
 
 
 def _scan_profiles(report, target, profiles, trace_cfg):

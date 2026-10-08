@@ -32,11 +32,20 @@ DEFAULTS = {
     },
     "trace": {
         # extra search queries; {target} is replaced. First one is the exact phrase.
-        "queries": ['"{target}"', '"{target}" email OR contact OR @'],
+        # keep queries plain: operators like "email OR contact" pull in email-finder spam
+        "queries": ['"{target}"'],
+        # drop search results that don't contain the target (normalised) in url/title/snippet
+        "require_target_in_result": True,
         "scan_social_profiles": True,
         "max_profiles": 5,
         # minimum username match to fetch a profile: exact | normalized | partial
         "min_profile_match": "normalized",
+    },
+    "profiles": {
+        # probe known platforms directly for <platform>/<username>
+        "enabled": True,
+        "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
+        "github_api": True,
     },
     "scan": {
         "max_linked_pages": 10,

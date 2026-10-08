@@ -7,10 +7,16 @@
     "google": { "enabled": false, "limit": 10 }
   },
   "trace": {
-    "queries": ["\"{target}\"", "\"{target}\" email OR contact OR @"],
+    "queries": ["\"{target}\""],
+    "require_target_in_result": true,
     "scan_social_profiles": true,
     "max_profiles": 5,
     "min_profile_match": "normalized"
+  },
+  "profiles": {
+    "enabled": true,
+    "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
+    "github_api": true
   },
   "scan": {
     "max_linked_pages": 10,

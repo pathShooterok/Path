@@ -133,10 +133,12 @@ Because apparently opening one webpage wasn't enough.
 - `sources.order` / `sources.<name>.enabled|limit` — which search engines run and in what order
 - `trace.queries` — search queries, `{target}` is substituted
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
+- `trace.require_target_in_result` — drop search results that don't mention the target
+- `profiles.enabled|platforms|github_api` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram directly for `<platform>/<username>` and read public fields (GitHub API: name, bio, blog, publicly listed email)
 - `scan.max_linked_pages`, `scan.follow_social_links`
 - `http.timeout|retries|backoff|user_agents`
 
-CLI: `--config FILE`, `--json FILE|-`, `--no-profiles`, `trace --sources duckduckgo,bing`.
+CLI: `--config FILE`, `--json FILE|-`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
 
 Google is disabled by default: it almost always serves a JS-only page to non-browser clients.
 
