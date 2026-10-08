@@ -16,12 +16,13 @@ Y                        Y               Y                      Y
                                                                        [0m
 
         PATH — OSINT & IDENTITY INTELLIGENCE
-                         v0.1.0
+                         v{version}
 """
 
 
 def print_banner():
-    print(BANNER)
+    from core import __version__
+    print(BANNER.replace("{version}", __version__))
 def print_report(report):
     print(f"Target: {report.target}")
     print("────────────────────────────────────────")
@@ -33,11 +34,16 @@ def print_report(report):
 
     regular_findings = []
     social_profiles = []
+    correlations = []
     personal_emails = []
     technical_emails = []
     test_emails = []
 
     for finding in report.findings:
+        if finding.kind in ("correlation", "correlation_unmatched"):
+            correlations.append(finding)
+            continue
+
         if finding.kind in ("social", "linked_social"):
             social_profiles.append(finding)
             continue
@@ -57,6 +63,14 @@ def print_report(report):
 
         else:
             regular_findings.append(finding)
+
+    if correlations:
+        print("\nCORRELATION (are these the same person?)")
+        print("────────────────────────────────────────")
+        for finding in correlations:
+            label = "SAME PERSON?" if finding.kind == "correlation" else "UNCONFIRMED"
+            print(f"\n[{finding.confidence.upper()}] {label}: {finding.value}")
+            print(f"  Evidence:    {finding.evidence}")
 
     if social_profiles:
         rank = {"high": 0, "medium": 1, "low": 2}

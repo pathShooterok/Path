@@ -21,6 +21,8 @@ def main() -> int:
     common.add_argument("--config", default=argparse.SUPPRESS, help="Path to config.json")
     common.add_argument("--json", dest="json_out", metavar="FILE", default=argparse.SUPPRESS,
                         help="Also save the report as JSON (use - for stdout)")
+    common.add_argument("--no-probe", action="store_true", default=argparse.SUPPRESS,
+                        help="Do not probe platforms directly for the username")
     common.add_argument("--no-profiles", action="store_true", default=argparse.SUPPRESS,
                         help="Do not fetch social profile pages during trace")
 
@@ -72,8 +74,14 @@ def main() -> int:
     args.config = getattr(args, "config", None)
     args.json_out = getattr(args, "json_out", None)
     args.no_profiles = getattr(args, "no_profiles", False)
+    args.no_probe = getattr(args, "no_probe", False)
+    overrides = {}
+    if args.no_profiles:
+        overrides["trace"] = {"scan_social_profiles": False}
+    if args.no_probe:
+        overrides["profiles"] = {"enabled": False}
 
-    load_config(args.config, {"trace": {"scan_social_profiles": False}} if args.no_profiles else None)
+    load_config(args.config, overrides)
 
     print_banner()
 

@@ -53,6 +53,7 @@ class Sources(unittest.TestCase):
         with mock.patch("sources.duckduckgo.fetch", return_value=fake(DDG)), \
              mock.patch("sources.bing.fetch", return_value=fake(BING)), \
              mock.patch("core.engine.fetch_url", return_value=page), \
+             mock.patch("core.engine.probe_profiles", return_value=[]), \
              mock.patch("sources.time.sleep"):
             rep = engine.run_trace("johndoe")
         kinds = {(f.kind, f.value) for f in rep.findings}
@@ -62,6 +63,140 @@ class Sources(unittest.TestCase):
         self.assertIn(("linked_social", "Telegram: https://t.me/johndoe"), kinds)
         # john_doe (normalized) fetched too; example.com is not a profile
         self.assertTrue(any(f.kind == "social" and "x.com/john_doe" in f.value for f in rep.findings))
+
+    def test_relevance_filter_drops_noise(self):
+        noise = {"title": "Bubble tea - Wikipedia", "url": "https://en.wikipedia.org/wiki/Bubble_tea",
+                 "snippet": "boba drink", "source": "bing"}
+        hit = {"title": "boba_40404 - profile", "url": "https://example.org/u/boba_40404",
+               "snippet": "", "source": "bing"}
+        with mock.patch("core.engine.run_search", return_value=[noise, hit]), \
+             mock.patch("core.engine.probe_profiles", return_value=[]):
+            rep = engine.run_trace("boba_40404")
+        urls = [f.source for f in rep.findings if f.kind == "web_result"]
+        self.assertEqual(urls, ["https://example.org/u/boba_40404"])
+
+    def test_probe_and_github_api(self):
+        html = "<html><title>boba</title>mail: public@boba.dev</html>"
+        probe = [{"platform": "GitHub", "username": "boba", "url": "https://github.com/boba", "html": html}]
+        api = {"name": "Boba B", "email": "api@boba.dev", "blog": "boba.dev",
+               "twitter_username": "bobatw", "bio": "hi", "location": None, "company": None}
+        with mock.patch("core.engine.run_search", return_value=[]), \
+             mock.patch("core.engine.probe_profiles", return_value=probe), \
+             mock.patch("core.engine.github_api", return_value=api):
+            rep = engine.run_trace("boba")
+        kinds = {(f.kind, f.value) for f in rep.findings}
+        self.assertIn(("social", "GitHub: https://github.com/boba"), kinds)
+        self.assertIn(("email", "api@boba.dev"), kinds)
+        self.assertIn(("email", "public@boba.dev"), kinds)
+        self.assertIn(("name", "Boba B"), kinds)
+        self.assertIn(("link", "https://boba.dev"), kinds)
+        self.assertIn(("linked_social", "X: https://x.com/bobatw"), kinds)
+
+
+class Extractors(unittest.TestCase):
+    def test_email_ignores_asset_names(self):
+        from extractors.email import extract_emails
+        text = ('<img src="images/badges/install-badge-linux-168-56@2x.png"> '
+                'logo@3x.webp icon@2x.svg mail: real.person@example.org, other@mail.ru.')
+        self.assertEqual(extract_emails(text), ["other@mail.ru", "real.person@example.org"])
+
+    def test_same_platform_links_dropped_on_profile_page(self):
+        rep = engine.new_report("x")
+        links = ["https://github.com/contact", "https://github.com/pricing",
+                 "https://github.com/x", "https://t.me/x_chan", "https://x.com/someone"]
+        engine._add_social_findings(rep, links, "https://github.com/x", "profile_probe", linked=True,
+                                    outbound_only=True)
+        vals = {f.value for f in rep.findings}
+        self.assertEqual(vals, {"Telegram: https://t.me/x_chan", "X: https://x.com/someone"})
+
+
+class Correlation(unittest.TestCase):
+    def _report(self, items):
+        from core.models import Finding
+        rep = engine.new_report("durov")
+        rep.findings = [Finding(kind=k, value=v, source=src, evidence="", source_type="t")
+                        for k, v, src in items]
+        return rep
+
+    def test_name_tokens_and_unmatched(self):
+        from core.correlate import correlate_profiles
+        rep = self._report([
+            ("social", "GitHub: https://github.com/durov", "https://github.com/durov"),
+            ("social", "Telegram: https://t.me/durov", "https://t.me/durov"),
+            ("social", "DEV: https://dev.to/durov", "https://dev.to/durov"),
+            ("name", "Pavel Durov", "https://github.com/durov"),
+            ("linked_og_title", "Pavel Durov", "https://t.me/durov"),
+            ("linked_og_title", "AhmEd — DEV Community Profile", "https://dev.to/durov"),
+        ])
+        correlate_profiles(rep, "durov")
+        corr = {f.kind: f for f in rep.findings if f.kind.startswith("correlation")}
+        self.assertEqual(corr["correlation"].value, "GitHub, Telegram")
+        self.assertEqual(corr["correlation_unmatched"].value, "DEV")
+
+    def test_cross_link_is_strong(self):
+        from core.correlate import correlate_profiles
+        rep = self._report([
+            ("social", "GitHub: https://github.com/boba", "https://github.com/boba"),
+            ("social", "X: https://x.com/boba", "https://x.com/boba"),
+            ("linked_social", "X: https://x.com/boba", "https://github.com/boba"),
+        ])
+        correlate_profiles(rep, "boba")
+        f = next(f for f in rep.findings if f.kind == "correlation")
+        self.assertEqual(f.confidence, "high")
+
+    def test_translit_relevance(self):
+        from extractors.social import match_level, _norm
+        self.assertEqual(_norm("Дуров"), "durov")
+        self.assertEqual(match_level("durov", "Дуров"), "exact" if False else "normalized")
+
+
+class Probes(unittest.TestCase):
+    def setUp(self):
+        load_config()
+
+    def test_probe_exists_and_validity(self):
+        from sources import profiles
+
+        def fake_fetch(url, headers=None, timeout=None):
+            if "github.com/boba" in url:
+                return {**fake(b"<html>ok</html>"), "final_url": url}
+            if "t.me/boba" in url:  # generic Telegram page without profile marker
+                return {**fake(b"<html>Contact</html>"), "final_url": url}
+            return {"ok": False, "status": 404, "final_url": url, "headers": {},
+                    "data": b"", "truncated": False, "error": "HTTP 404"}
+
+        with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
+             mock.patch("sources.profiles.time.sleep"):
+            r = profiles.probe_profiles("boba")
+        self.assertEqual([p["platform"] for p in r], ["GitHub"])  # t.me needs marker; "boba" < 5 chars anyway
+
+        with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
+             mock.patch("sources.profiles.time.sleep"):
+            self.assertEqual(profiles.probe_profiles("bad name!"), [])
+
+    def test_variants_and_gitlab_api(self):
+        from sources import profiles
+
+        self.assertEqual(profiles.username_variants("boba_40404"),
+                         ["boba_40404", "boba-40404", "boba40404"])
+
+        def fake_fetch(url, headers=None, timeout=None):
+            if "github.com/boba-40404" in url:
+                return {**fake(b"<html>ok</html>"), "final_url": url}
+            if "api/v4/users?username=boba_40404" in url:
+                return fake(b'[{"username": "boba_40404", "name": "Boba", "web_url": "https://gitlab.com/boba_40404"}]')
+            if "api/v4/users" in url:
+                return fake(b"[]")
+            return {"ok": False, "status": 404, "final_url": url, "headers": {},
+                    "data": b"", "truncated": False, "error": "HTTP 404"}
+
+        with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
+             mock.patch("sources.profiles.time.sleep"):
+            r = {p["platform"]: p for p in profiles.probe_profiles("boba_40404")}
+        self.assertTrue(r["GitHub"]["variant"])          # underscore invalid on GitHub -> boba-40404
+        self.assertEqual(r["GitHub"]["username"], "boba-40404")
+        self.assertFalse(r["GitLab"]["variant"])
+        self.assertEqual(r["GitLab"]["name"], "Boba")
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ def decode_bing_url(url: str) -> str:
 
 def search_bing(query: str, limit: int = 10, target: str | None = None,
                 require_target_match: bool = False) -> list[dict]:
-    url = f"https://www.bing.com/search?q={quote_plus(query)}&count={max(limit, 10)}&setlang=en"
+    url = f"https://www.bing.com/search?q={quote_plus(query)}&count={max(limit, 10)}&setlang=en&mkt=en-US&cc=US"
     response = fetch(url)
     if not response["ok"]:
         print(f"[-] Bing request failed: {response['error']}")

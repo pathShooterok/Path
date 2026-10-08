@@ -9,8 +9,8 @@ USERNAME_RE = re.compile(
 )
 
 NAME_CONTEXT_RE = re.compile(
-    r"(?i)"
-    r"(?:"
+    # (?i:...) applies only to the label, so the name itself must really be Capitalised
+    r"(?i:"
     r"\bauthor\b\s*[:\-]\s*"
     r"|\bwritten\s+by\b\s*"
     r"|\bby\b\s*[:\-]\s*"
