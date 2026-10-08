@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "path-osint"
+dynamic = ["version"]
+description = "PATH: small OSINT CLI that traces a username across public sources"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Security",
+]
+
+[project.scripts]
+path = "path:main"
+
+[tool.setuptools]
+py-modules = ["path"]
+
+[tool.setuptools.packages.find]
+include = ["core*", "extractors*", "sources*", "output*"]
+
+[tool.setuptools.package-data]
+core = ["data/*.json"]
+
+[tool.setuptools.dynamic]
+version = { attr = "core.__version__" }

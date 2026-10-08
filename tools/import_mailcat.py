@@ -16,6 +16,7 @@ MAILCAT_SOURCE = (
 
 OUTPUT_FILE = (
     PROJECT_ROOT
+    / "core"
     / "data"
     / "mail_providers.json"
 )

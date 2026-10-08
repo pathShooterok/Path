@@ -110,6 +110,46 @@ class Extractors(unittest.TestCase):
         self.assertEqual(vals, {"Telegram: https://t.me/x_chan", "X: https://x.com/someone"})
 
 
+class Correlation(unittest.TestCase):
+    def _report(self, items):
+        from core.models import Finding
+        rep = engine.new_report("durov")
+        rep.findings = [Finding(kind=k, value=v, source=src, evidence="", source_type="t")
+                        for k, v, src in items]
+        return rep
+
+    def test_name_tokens_and_unmatched(self):
+        from core.correlate import correlate_profiles
+        rep = self._report([
+            ("social", "GitHub: https://github.com/durov", "https://github.com/durov"),
+            ("social", "Telegram: https://t.me/durov", "https://t.me/durov"),
+            ("social", "DEV: https://dev.to/durov", "https://dev.to/durov"),
+            ("name", "Pavel Durov", "https://github.com/durov"),
+            ("linked_og_title", "Pavel Durov", "https://t.me/durov"),
+            ("linked_og_title", "AhmEd — DEV Community Profile", "https://dev.to/durov"),
+        ])
+        correlate_profiles(rep, "durov")
+        corr = {f.kind: f for f in rep.findings if f.kind.startswith("correlation")}
+        self.assertEqual(corr["correlation"].value, "GitHub, Telegram")
+        self.assertEqual(corr["correlation_unmatched"].value, "DEV")
+
+    def test_cross_link_is_strong(self):
+        from core.correlate import correlate_profiles
+        rep = self._report([
+            ("social", "GitHub: https://github.com/boba", "https://github.com/boba"),
+            ("social", "X: https://x.com/boba", "https://x.com/boba"),
+            ("linked_social", "X: https://x.com/boba", "https://github.com/boba"),
+        ])
+        correlate_profiles(rep, "boba")
+        f = next(f for f in rep.findings if f.kind == "correlation")
+        self.assertEqual(f.confidence, "high")
+
+    def test_translit_relevance(self):
+        from extractors.social import match_level, _norm
+        self.assertEqual(_norm("Дуров"), "durov")
+        self.assertEqual(match_level("durov", "Дуров"), "exact" if False else "normalized")
+
+
 class Probes(unittest.TestCase):
     def setUp(self):
         load_config()

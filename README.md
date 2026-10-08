@@ -245,7 +245,7 @@ Path/
 ├── output/
 │   └── console.py
 │
-├── data/
+├── core/data/
 │
 ├── tools/
 │   └── import_mailcat.py
@@ -255,7 +255,7 @@ Path/
 
 ## Current state
 
-`v0.1.0`
+`v0.2.0`
 
 This is an early version.
 
@@ -274,7 +274,6 @@ Some things I'd like to add eventually:
 - stronger identity correlation
 - more extractors
 - better URL handling
-- configurable scanning depth
 - improved output formats
 - JSON export
 - more useful confidence scoring

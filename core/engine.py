@@ -3,6 +3,7 @@ from urllib.parse import urlparse, urlunparse
 from core.models import Finding, new_report
 
 from core.config import get_config
+from core.correlate import correlate_profiles
 from sources import run_search
 from sources.web import fetch_url
 from sources.profiles import probe_profiles, github_api
@@ -89,8 +90,21 @@ def _add_metadata_findings(
     confidence,
     linked=False,
 ):
+    redundant = {
+        "og_title": metadata.get("title"),
+        "og_description": metadata.get("description"),
+        "og_url": source,
+    }
+
     for key, value in metadata.items():
         if not value:
+            continue
+
+        # og:* tags that just repeat the plain tag / the page URL add only noise
+        if key in redundant and redundant[key] and (
+            value.strip() == redundant[key].strip()
+            or (key == "og_url" and _normalize_url(value) == _normalize_url(source))
+        ):
             continue
 
         kind = f"linked_{key}" if linked else key
@@ -342,6 +356,8 @@ def run_trace(target: str, only_sources: list[str] | None = None):
 
     if trace_cfg["scan_social_profiles"]:
         _scan_profiles(report, target, profiles, trace_cfg)
+
+    correlate_profiles(report, target)
 
     return report
 

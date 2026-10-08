@@ -71,7 +71,12 @@ _config: dict | None = None
 def load_config(path: str | Path | None = None, overrides: dict | None = None) -> dict:
     global _config
     cfg = copy.deepcopy(DEFAULTS)
-    config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    if path:
+        config_path = Path(path)
+    else:
+        # ./config.json (installed use) wins over the one next to the source tree
+        cwd_config = Path.cwd() / "config.json"
+        config_path = cwd_config if cwd_config.exists() else DEFAULT_CONFIG_PATH
 
     if config_path.exists():
         text = config_path.read_text(encoding="utf-8").strip()
@@ -82,6 +87,14 @@ def load_config(path: str | Path | None = None, overrides: dict | None = None) -
                 raise SystemExit(f"[-] Invalid JSON in {config_path}: {e}")
     elif path:
         raise SystemExit(f"[-] Config not found: {config_path}")
+
+    # personal overrides, git-ignored: config.local.json next to config.json
+    local = config_path.with_name("config.local.json")
+    if not path and local.exists() and local.read_text(encoding="utf-8").strip():
+        try:
+            _merge(cfg, json.loads(local.read_text(encoding="utf-8")))
+        except json.JSONDecodeError as e:
+            raise SystemExit(f"[-] Invalid JSON in {local}: {e}")
 
     if overrides:
         _merge(cfg, overrides)

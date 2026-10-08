@@ -207,8 +207,22 @@ def find_social_in_text(text: str) -> list[dict]:
     )
 
 
+_TRANSLIT = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
+    "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+    "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "kh", "ц": "ts",
+    "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu",
+    "я": "ya",
+}
+
+
+def translit(value: str) -> str:
+    """Cyrillic -> Latin, so 'Дуров' and 'durov' compare equal."""
+    return "".join(_TRANSLIT.get(ch, ch) for ch in value.lower())
+
+
 def _norm(value: str) -> str:
-    return re.sub(r"[^a-z0-9а-яё]", "", value.lower().lstrip("@"))
+    return re.sub(r"[^a-z0-9]", "", translit(value.lstrip("@")))
 
 
 def match_level(username: str, target: str) -> str:
