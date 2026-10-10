@@ -1,4 +1,3 @@
-"""Shared HTTP layer: one place for retries, headers, size limits."""
 import random
 import socket
 import time
@@ -23,11 +22,6 @@ def _headers(extra: dict | None = None) -> dict:
 
 
 def fetch(url: str, headers: dict | None = None, timeout: float | None = None) -> dict:
-    """GET with retry/backoff.
-
-    Always returns a dict:
-      ok, status, final_url, headers, data (bytes), truncated, error
-    """
     cfg = get_config()["http"]
     timeout = timeout or cfg["timeout"]
     max_bytes = cfg["max_response_bytes"]
@@ -75,7 +69,7 @@ def fetch(url: str, headers: dict | None = None, timeout: float | None = None) -
                 time.sleep(backoff * (2 ** attempt))
                 continue
             return result
-        except Exception as e:  # non-retryable
+        except Exception as e:
             result["error"] = str(e)
             return result
 

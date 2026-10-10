@@ -1,14 +1,6 @@
-"""Social network URL parser.
-
-Turns any URL (or URL-looking text) into {platform, username, url, kind},
-filters out non-profile pages (/login, /explore, /watch ...), canonicalises
-the profile URL, and scores how well a username matches a target.
-"""
 import re
 from urllib.parse import urlparse, unquote
 
-# Each platform: hosts it lives on, ordered path patterns with a named group
-# "user", and a canonical URL template.
 _U = r"[A-Za-z0-9_.\-]{1,64}"
 
 PLATFORMS = [
@@ -113,7 +105,6 @@ PLATFORMS = [
      "canonical": "https://www.behance.net/{user}"},
 ]
 
-# subdomain-style profiles: <user>.platform.tld
 SUBDOMAIN_PLATFORMS = {
     "livejournal.com": ("LiveJournal", "https://{user}.livejournal.com"),
     "tumblr.com": ("Tumblr", "https://{user}.tumblr.com"),
@@ -144,7 +135,6 @@ def _clean_host(netloc: str) -> str:
 
 
 def parse_social_url(url: str) -> dict | None:
-    """Return {platform, username, url, kind} for a profile URL, else None."""
     try:
         parsed = urlparse(url if "://" in url else "https://" + url)
     except ValueError:
@@ -159,7 +149,7 @@ def parse_social_url(url: str) -> dict | None:
             m = regex.match(path)
             if not m:
                 continue
-            if "user" not in regex.groupindex:  # Facebook profile.php?id=
+            if "user" not in regex.groupindex:
                 from urllib.parse import parse_qs
                 uid = parse_qs(parsed.query).get("id", [None])[0]
                 if not uid or not uid.isdigit():
@@ -185,7 +175,6 @@ def parse_social_url(url: str) -> dict | None:
 
 
 def extract_social_profiles(links: list[str]) -> list[dict]:
-    """Parse a list of URLs; dedupe by (platform, lowercase username)."""
     results, seen = [], set()
     for link in links:
         item = parse_social_url(link)
@@ -201,7 +190,6 @@ def extract_social_profiles(links: list[str]) -> list[dict]:
 
 
 def find_social_in_text(text: str) -> list[dict]:
-    """Profile links mentioned as plain text ("my tg: t.me/foo")."""
     return extract_social_profiles(
         [m.rstrip(".,;:!?") for m in _URL_IN_TEXT.findall(text or "")]
     )
@@ -217,7 +205,6 @@ _TRANSLIT = {
 
 
 def translit(value: str) -> str:
-    """Cyrillic -> Latin, so 'Дуров' and 'durov' compare equal."""
     return "".join(_TRANSLIT.get(ch, ch) for ch in value.lower())
 
 
@@ -226,7 +213,6 @@ def _norm(value: str) -> str:
 
 
 def match_level(username: str, target: str) -> str:
-    """exact | normalized | partial | none"""
     u, t = username.lower().lstrip("@"), target.lower().lstrip("@")
     if not u or not t:
         return "none"

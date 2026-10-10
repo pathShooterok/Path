@@ -34,7 +34,7 @@ class SocialParse(unittest.TestCase):
     def test_non_profiles(self):
         for url in [
             "https://github.com/features", "https://github.com/login",
-            "https://github.com/torvalds/linux",       # repo, not a profile
+            "https://github.com/torvalds/linux",
             "https://t.me/joinchat", "https://t.me/s",
             "https://twitter.com/intent/tweet", "https://www.instagram.com/p/abc/",
             "https://vk.com/feed", "https://example.com/user",

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urlunparse
 
 from core.models import Finding, new_report
@@ -100,7 +101,6 @@ def _add_metadata_findings(
         if not value:
             continue
 
-        # og:* tags that just repeat the plain tag / the page URL add only noise
         if key in redundant and redundant[key] and (
             value.strip() == redundant[key].strip()
             or (key == "og_url" and _normalize_url(value) == _normalize_url(source))
@@ -259,8 +259,6 @@ def _add_social_findings(report, links, source, source_type, linked=False, targe
                          outbound_only=False):
     profiles = extract_social_profiles(links)
 
-    # On a profile page, links to the same platform are site navigation and
-    # sidebar users, not the person's other accounts: keep only outbound ones.
     own = parse_social_url(source) if outbound_only else None
     if own:
         profiles = [p for p in profiles if p["platform"] != own["platform"]]
@@ -291,7 +289,6 @@ def _add_social_findings(report, links, source, source_type, linked=False, targe
 
 
 def _analyze_page(report, html, url, source_type, confidence, linked):
-    """Metadata, emails, links and identity for one fetched HTML page."""
     _add_metadata_findings(report, extract_metadata(html), url, source_type, confidence, linked=linked)
     _add_email_findings(report, extract_emails(html), url, source_type, confidence, linked=linked)
     page_links = extract_links(html, url)
@@ -309,7 +306,7 @@ def run_trace(target: str, only_sources: list[str] | None = None):
     queries = [q.replace("{target}", target) for q in trace_cfg["queries"]]
     results = run_search(target, queries, only=only_sources)
 
-    profiles = []  # (match_level, profile)
+    profiles = []
 
     if cfg["profiles"]["enabled"]:
         _probe_known_platforms(report, target)
@@ -337,13 +334,11 @@ def run_trace(target: str, only_sources: list[str] | None = None):
             ),
         )
 
-        # emails visible in the search snippet itself
         _add_email_findings(
             report, extract_emails(f"{title} {snippet}"),
             url, "search_engine", "medium",
         )
 
-        # social profiles: the result URL itself and links mentioned in the snippet
         candidates = [url] + [p["found_as"] for p in find_social_in_text(snippet)]
         for profile in _add_social_findings(
             report, candidates, url, "search_engine", target=target
@@ -422,7 +417,6 @@ def _add_github_api_findings(report, username, url):
     if data.get("blog"):
         blog = data["blog"] if data["blog"].startswith("http") else "https://" + data["blog"]
         add("link", blog, "Website from public GitHub profile", "high")
-    # only an address the user chose to publish on their profile
     if data.get("email"):
         _add_email_findings(report, [data["email"]], url, "github_api", "high")
     if data.get("bio"):
@@ -430,7 +424,6 @@ def _add_github_api_findings(report, username, url):
 
 
 def _scan_profiles(report, target, profiles, trace_cfg):
-    """Fetch the best-matching public profile pages and extract bio/email/links."""
     minimum = trace_cfg["min_profile_match"]
     rank = {"exact": 0, "normalized": 1, "partial": 2}
     chosen, seen = [], set()
@@ -443,9 +436,15 @@ def _scan_profiles(report, target, profiles, trace_cfg):
         if len(chosen) >= trace_cfg["max_profiles"]:
             break
 
-    for profile in chosen:
+    if not chosen:
+        return
+
+    workers = max(1, min(get_config()["profiles"].get("workers", 6), len(chosen)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pages = list(pool.map(lambda item: fetch_url(item["url"]), chosen))
+
+    for profile, page in zip(chosen, pages):
         print(f"[*] Reading profile: {profile['platform']} / {profile['username']}")
-        page = fetch_url(profile["url"])
         if page.get("error") or not page.get("text"):
             print(f"[-] Profile not readable: {page.get('error') or 'empty'}")
             continue
@@ -600,7 +599,6 @@ def run_url_scan(url: str):
 
     always = set()
     if get_config()["scan"]["follow_social_links"]:
-        # social profile links bypass the keyword filter (they never contain /about etc.)
         always = {p["found_as"] for p in extract_social_profiles(links)}
 
     linked_pages = scan_linked_pages(links, seen=seen, always=always)

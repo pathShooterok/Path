@@ -61,7 +61,6 @@ class Sources(unittest.TestCase):
         self.assertIn(("email", "john@gmail.com"), kinds)
         self.assertIn(("email", "johndoe.real@proton.me"), kinds)
         self.assertIn(("linked_social", "Telegram: https://t.me/johndoe"), kinds)
-        # john_doe (normalized) fetched too; example.com is not a profile
         self.assertTrue(any(f.kind == "social" and "x.com/john_doe" in f.value for f in rep.findings))
 
     def test_relevance_filter_drops_noise(self):
@@ -150,6 +149,64 @@ class Correlation(unittest.TestCase):
         self.assertEqual(match_level("durov", "Дуров"), "exact" if False else "normalized")
 
 
+class Parallel(unittest.TestCase):
+    def setUp(self):
+        load_config()
+
+    def test_probes_run_concurrently_and_keep_order(self):
+        import time
+        from sources import profiles
+
+        def slow_fetch(url, headers=None, timeout=None):
+            time.sleep(0.2)
+            if "api/v4/users" in url:
+                return fake(b'[{"username": "bobacat", "name": "B", "web_url": "https://gitlab.com/bobacat"}]')
+            return {**fake(b'<html class="tgme_page_title">ok</html>'), "final_url": url}
+
+        started = time.monotonic()
+        with mock.patch("sources.profiles.fetch", side_effect=slow_fetch):
+            found = profiles.probe_profiles("bobacat")
+        elapsed = time.monotonic() - started
+
+        self.assertEqual([p["platform"] for p in found],
+                         ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"])
+        self.assertLess(elapsed, 0.9)
+
+    def test_sources_run_concurrently_and_dedupe_in_order(self):
+        import time
+        import sources
+
+        def slow(name, urls):
+            def run(query, **kwargs):
+                time.sleep(0.3)
+                return [{"title": u, "url": u, "snippet": "", "source": name} for u in urls]
+            return run
+
+        registry = {"duckduckgo": slow("duckduckgo", ["https://a.example/1", "https://b.example/2"]),
+                    "bing": slow("bing", ["https://b.example/2/", "https://c.example/3"])}
+        started = time.monotonic()
+        with mock.patch.dict(sources.REGISTRY, registry, clear=True):
+            results = sources.run_search("x", ['"x"'], only=["duckduckgo", "bing"])
+        elapsed = time.monotonic() - started
+
+        self.assertEqual([r["url"] for r in results],
+                         ["https://a.example/1", "https://b.example/2", "https://c.example/3"])
+        self.assertLess(elapsed, 0.55)
+
+    def test_failing_source_does_not_break_others(self):
+        import sources
+
+        def boom(query, **kwargs):
+            raise RuntimeError("blocked")
+
+        def ok(query, **kwargs):
+            return [{"title": "t", "url": "https://ok.example/", "snippet": "", "source": "bing"}]
+
+        with mock.patch.dict(sources.REGISTRY, {"duckduckgo": boom, "bing": ok}, clear=True):
+            results = sources.run_search("x", ['"x"'], only=["duckduckgo", "bing"])
+        self.assertEqual([r["url"] for r in results], ["https://ok.example/"])
+
+
 class Probes(unittest.TestCase):
     def setUp(self):
         load_config()
@@ -160,7 +217,7 @@ class Probes(unittest.TestCase):
         def fake_fetch(url, headers=None, timeout=None):
             if "github.com/boba" in url:
                 return {**fake(b"<html>ok</html>"), "final_url": url}
-            if "t.me/boba" in url:  # generic Telegram page without profile marker
+            if "t.me/boba" in url:
                 return {**fake(b"<html>Contact</html>"), "final_url": url}
             return {"ok": False, "status": 404, "final_url": url, "headers": {},
                     "data": b"", "truncated": False, "error": "HTTP 404"}
@@ -168,7 +225,7 @@ class Probes(unittest.TestCase):
         with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
              mock.patch("sources.profiles.time.sleep"):
             r = profiles.probe_profiles("boba")
-        self.assertEqual([p["platform"] for p in r], ["GitHub"])  # t.me needs marker; "boba" < 5 chars anyway
+        self.assertEqual([p["platform"] for p in r], ["GitHub"])
 
         with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
              mock.patch("sources.profiles.time.sleep"):
@@ -193,7 +250,7 @@ class Probes(unittest.TestCase):
         with mock.patch("sources.profiles.fetch", side_effect=fake_fetch), \
              mock.patch("sources.profiles.time.sleep"):
             r = {p["platform"]: p for p in profiles.probe_profiles("boba_40404")}
-        self.assertTrue(r["GitHub"]["variant"])          # underscore invalid on GitHub -> boba-40404
+        self.assertTrue(r["GitHub"]["variant"])
         self.assertEqual(r["GitHub"]["username"], "boba-40404")
         self.assertFalse(r["GitLab"]["variant"])
         self.assertEqual(r["GitLab"]["name"], "Boba")

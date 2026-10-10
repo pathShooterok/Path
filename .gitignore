@@ -1,4 +1,3 @@
-# python
 __pycache__/
 *.pyc
 .venv/
@@ -8,11 +7,9 @@ build/
 dist/
 .pytest_cache/
 
-# secrets / personal config
 .env
 config.local.json
 
-# scan output: reports contain whoever you investigated, never commit them
 results/
 reports/
 out*.json
@@ -22,16 +19,13 @@ t[0-9]*.json
 trace_*.json
 scan_*.json
 
-# debug dumps of search engine pages
 *_debug.html
 debug_*.py
 *.har
 
-# archives and logs
 *.zip
 *.log
 
-# editors / OS
 .idea/
 .vscode/
 .DS_Store

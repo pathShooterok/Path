@@ -130,6 +130,7 @@ Because apparently opening one webpage wasn't enough.
 
 `config.json` (all keys optional, missing ones fall back to defaults in `core/config.py`):
 
+- `sources.parallel` — query search engines concurrently; `profiles.workers` — threads for platform probes and profile reads
 - `sources.order` / `sources.<name>.enabled|limit` — which search engines run and in what order
 - `trace.queries` — search queries, `{target}` is substituted
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)

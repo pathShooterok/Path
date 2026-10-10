@@ -165,7 +165,6 @@ def get_global_values(tree):
     """
     Collect useful domain-like values from module-level
     variables. This handles things such as:
-
         _MSA_DOMAINS = [...]
         someDomain = "yahoo.com"
     """
@@ -240,8 +239,6 @@ def extract_domains_from_function(
     domains = set()
 
     for node in ast.walk(function_node):
-
-
         if isinstance(node, ast.Assign):
             value = node.value
 

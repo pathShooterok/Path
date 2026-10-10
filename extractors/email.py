@@ -10,7 +10,6 @@ EMAIL_RE = re.compile(
     r"\b"
 )
 
-# "icon@2x.png", "logo@3x.webp" and similar asset names look like emails
 _ASSET_TLDS = {
     "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "avif",
     "css", "js", "mjs", "map", "json", "xml", "html", "htm", "php",
@@ -23,7 +22,7 @@ def _looks_like_email(candidate: str) -> bool:
     tld = domain.rsplit(".", 1)[1]
     if not tld.isalpha() or len(tld) < 2 or tld in _ASSET_TLDS:
         return False
-    if re.fullmatch(r"\d+x", domain.split(".")[0]):  # 2x.png, 3x.jpg
+    if re.fullmatch(r"\d+x", domain.split(".")[0]):
         return False
     return True
 

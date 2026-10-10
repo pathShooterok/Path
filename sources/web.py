@@ -1,4 +1,3 @@
-"""Direct page fetching (used by `-url` scans and profile scans)."""
 from core.http import fetch, decode_body
 
 

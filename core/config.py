@@ -1,4 +1,3 @@
-"""Config loading: built-in defaults <- config.json <- CLI overrides."""
 import copy
 import json
 from pathlib import Path
@@ -22,31 +21,25 @@ DEFAULTS = {
         ],
     },
     "sources": {
-        # order = priority; results are merged and deduplicated by URL
         "order": ["duckduckgo", "bing", "google"],
         "delay_between": 1.0,
+        "parallel": True,
         "duckduckgo": {"enabled": True, "limit": 10},
         "bing": {"enabled": True, "limit": 10, "require_target_match": False},
-        # Google serves a JS-only page to non-browser clients most of the time
         "google": {"enabled": False, "limit": 10},
     },
     "trace": {
-        # extra search queries; {target} is replaced. First one is the exact phrase.
-        # keep queries plain: operators like "email OR contact" pull in email-finder spam
         "queries": ['"{target}"'],
-        # drop search results that don't contain the target (normalised) in url/title/snippet
         "require_target_in_result": True,
         "scan_social_profiles": True,
         "max_profiles": 5,
-        # minimum username match to fetch a profile: exact | normalized | partial
         "min_profile_match": "normalized",
     },
     "profiles": {
-        # probe known platforms directly for <platform>/<username>
         "enabled": True,
         "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
         "github_api": True,
-        # also try boba_1 -> boba-1 / boba1 on platforms where the exact nick is invalid or missing
+        "workers": 6,
         "try_variants": True,
     },
     "scan": {
@@ -74,7 +67,6 @@ def load_config(path: str | Path | None = None, overrides: dict | None = None) -
     if path:
         config_path = Path(path)
     else:
-        # ./config.json (installed use) wins over the one next to the source tree
         cwd_config = Path.cwd() / "config.json"
         config_path = cwd_config if cwd_config.exists() else DEFAULT_CONFIG_PATH
 
@@ -88,7 +80,6 @@ def load_config(path: str | Path | None = None, overrides: dict | None = None) -
     elif path:
         raise SystemExit(f"[-] Config not found: {config_path}")
 
-    # personal overrides, git-ignored: config.local.json next to config.json
     local = config_path.with_name("config.local.json")
     if not path and local.exists() and local.read_text(encoding="utf-8").strip():
         try:

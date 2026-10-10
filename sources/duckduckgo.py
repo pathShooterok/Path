@@ -19,7 +19,6 @@ def _clean(text: str) -> str:
 
 
 def _real_url(href: str) -> str:
-    """DDG wraps results as //duckduckgo.com/l/?uddg=<encoded url>."""
     href = unescape(href)
     if href.startswith("//"):
         href = "https:" + href
@@ -48,7 +47,6 @@ def search_duckduckgo(query: str, limit: int = 10, **_) -> list[dict]:
               else f"[-] DuckDuckGo: unexpected page ({len(html)} chars), likely blocked.")
         return []
 
-    # snippets come in the same order as titles
     snippets = [_clean(s) for s in SNIPPET_RE.findall(html)]
     results = []
     for i, (href, title) in enumerate(RESULT_RE.findall(html)):

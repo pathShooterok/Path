@@ -1,21 +1,13 @@
-"""Direct profile probing: does <platform>/<username> exist, and what does it publish?
-
-Only platforms where "no such user" is reliably distinguishable (404 or an
-explicit marker) are listed. Each probe returns the public profile HTML so the
-normal extractors (email, links, metadata, identity) can run on it.
-"""
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from core.config import get_config
 from core.http import fetch, decode_body
 
-# name -> url template, validity regex for the username on that platform,
-# optional marker that must be present (positive) / absent (negative)
 PROBES = {
     "GitHub":   {"url": "https://github.com/{u}", "valid": r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"},
-    # gitlab.com blocks scripted page requests (403); the public users API does not
     "GitLab":   {"url": "https://gitlab.com/{u}", "valid": r"^[A-Za-z0-9_.\-]{2,255}$",
                  "api": "https://gitlab.com/api/v4/users?username={u}"},
     "Habr":     {"url": "https://habr.com/ru/users/{u}/", "valid": r"^[A-Za-z0-9_\-]{2,32}$"},
@@ -36,7 +28,6 @@ def _exists(name: str, spec: dict, response: dict, html: str) -> bool:
 
 
 def github_api(username: str) -> dict | None:
-    """Public profile fields from the GitHub REST API (no auth, 60 req/h)."""
     response = fetch(
         f"https://api.github.com/users/{username}",
         headers={"Accept": "application/vnd.github+json"},
@@ -50,7 +41,6 @@ def github_api(username: str) -> dict | None:
 
 
 def username_variants(username: str) -> list[str]:
-    """The nick itself plus common platform-driven spellings (boba_1 -> boba-1, boba1)."""
     variants = [username]
     for v in (username.replace("_", "-"), username.replace("_", "").replace("-", "")):
         if v and v not in variants:
@@ -58,8 +48,7 @@ def username_variants(username: str) -> list[str]:
     return variants
 
 
-def _probe_one(name: str, spec: dict, username: str) -> dict | None:
-    """Return a profile dict if it exists, else None. Prints one status line."""
+def _probe_one(name: str, spec: dict, username: str):
     if "api" in spec:
         response = fetch(spec["api"].format(u=username))
         status = response["status"]
@@ -70,12 +59,11 @@ def _probe_one(name: str, spec: dict, username: str) -> dict | None:
         match = next((u for u in users if u.get("username", "").lower() == username.lower()), None)
         label = "FOUND" if match else ("-" if response["ok"] or status == 404
                                        else f"?  ({response['error']})")
-        print(f"    {name:<9} {username}: {label}")
         if not match:
-            return None
+            return None, label
         return {"platform": name, "username": match["username"], "html": "",
                 "url": match.get("web_url") or spec["url"].format(u=username),
-                "name": match.get("name", "")}
+                "name": match.get("name", "")}, label
 
     url = spec["url"].format(u=username)
     response = fetch(url)
@@ -83,42 +71,58 @@ def _probe_one(name: str, spec: dict, username: str) -> dict | None:
     exists = _exists(name, spec, response, html)
     label = "FOUND" if exists else ("-" if response["ok"] or response["status"] == 404
                                     else f"?  ({response['error']})")
-    print(f"    {name:<9} {username}: {label}")
     if not exists:
-        return None
+        return None, label
     return {"platform": name, "username": username,
-            "url": response["final_url"] or url, "html": html, "name": ""}
+            "url": response["final_url"] or url, "html": html, "name": ""}, label
+
+
+def _probe_platform(name: str, spec: dict, username: str, variants: list[str], delay: float):
+    tried = [v for v in variants if re.match(spec["valid"], v)]
+    if not tried:
+        return [f"    {name:<9} skipped (username not valid on this platform)"], None
+
+    lines = []
+    for candidate in tried:
+        profile, label = _probe_one(name, spec, candidate)
+        lines.append(f"    {name:<9} {candidate}: {label}")
+        if profile:
+            profile["variant"] = candidate != username
+            return lines, profile
+        if delay:
+            time.sleep(delay)
+    return lines, None
 
 
 def probe_profiles(username: str, platforms: list[str] | None = None) -> list[dict]:
-    """Return [{platform, username, url, html, name, variant}] for profiles that exist.
-
-    variant=True means the profile matched a spelling variant, not the exact nick.
-    """
     cfg = get_config()["profiles"]
     names = platforms or cfg["platforms"] or list(PROBES)
     delay = get_config()["sources"].get("delay_between", 0) / 2
     variants = username_variants(username) if cfg.get("try_variants", True) else [username]
-    found = []
 
+    jobs = []
     for name in names:
         spec = PROBES.get(name)
         if not spec:
             print(f"[-] Unknown profile platform in config: {name}")
             continue
+        jobs.append((name, spec))
 
-        tried = [v for v in variants if re.match(spec["valid"], v)]
-        if not tried:
-            print(f"    {name:<9} skipped (username not valid on this platform)")
-            continue
+    if not jobs:
+        return []
 
-        for candidate in tried:
-            profile = _probe_one(name, spec, candidate)
-            if profile:
-                profile["variant"] = candidate != username
-                found.append(profile)
-                break  # first hit wins; exact nick is tried first
-            if delay:
-                time.sleep(delay)
+    workers = max(1, min(cfg.get("workers", 6), len(jobs)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(_probe_platform, name, spec, username, variants, delay)
+            for name, spec in jobs
+        ]
+        outcomes = [future.result() for future in futures]
 
+    found = []
+    for lines, profile in outcomes:
+        for line in lines:
+            print(line)
+        if profile:
+            found.append(profile)
     return found

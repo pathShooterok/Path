@@ -2,6 +2,7 @@
   "sources": {
     "order": ["duckduckgo", "bing", "google"],
     "delay_between": 1.0,
+    "parallel": true,
     "duckduckgo": { "enabled": true, "limit": 10 },
     "bing": { "enabled": true, "limit": 10, "require_target_match": false },
     "google": { "enabled": false, "limit": 10 }
@@ -17,6 +18,7 @@
     "enabled": true,
     "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
     "github_api": true,
+    "workers": 6,
     "try_variants": true
   },
   "scan": {

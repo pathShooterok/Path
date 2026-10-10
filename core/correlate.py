@@ -1,20 +1,8 @@
-"""Do the profiles found for one username belong to the same person?
-
-A username existing on many platforms proves nothing: 'durov' on DEV is a
-different person than 'durov' on Telegram. This module looks for evidence that
-links profiles to each other and groups them:
-
-  * cross-link  (strong): profile A's page/API points to profile B
-  * name tokens (weak):   profiles show the same display-name words
-
-It never changes existing findings; it only adds `correlation` findings.
-"""
 import re
 
 from core.models import Finding
 from extractors.social import parse_social_url, translit
 
-# words that appear in page titles of the platforms themselves, not in names
 NOISE = {
     "github", "gitlab", "overview", "instagram", "photos", "videos", "photo", "video",
     "telegram", "view", "contact", "profile", "keybase", "community", "habr", "pikabu",
@@ -34,7 +22,7 @@ def _key(url: str):
 
 
 def _tokens(text: str, drop: set[str]) -> set[str]:
-    text = re.sub(r"\(@[^)]*\)", " ", text)           # "(@durov)"
+    text = re.sub(r"\(@[^)]*\)", " ", text)
     words = re.findall(r"[A-Za-zА-Яа-яЁё]{4,}", text)
     out = set()
     for w in words:
@@ -48,7 +36,6 @@ def _tokens(text: str, drop: set[str]) -> set[str]:
 def correlate_profiles(report, target: str) -> None:
     drop = {translit(target)}
 
-    # 1) profiles = direct social findings (probe / search / profile scan)
     profiles: dict[tuple, dict] = {}
     for f in report.findings:
         if f.kind != "social":
@@ -62,7 +49,6 @@ def correlate_profiles(report, target: str) -> None:
     if len(profiles) < 2:
         return
 
-    # 2) name tokens per profile, from findings whose source is that profile page
     for f in report.findings:
         k = _key(f.source) if f.source else None
         if k not in profiles:
@@ -70,7 +56,6 @@ def correlate_profiles(report, target: str) -> None:
         if f.kind in NAME_KINDS or f.kind in TITLE_KINDS:
             profiles[k]["tokens"] |= _tokens(f.value, drop | {translit(k[1])})
 
-    # 3) edges
     edges: dict[frozenset, dict] = {}
 
     keys = list(profiles)
@@ -96,7 +81,6 @@ def correlate_profiles(report, target: str) -> None:
         _emit_unmatched(report, profiles, set())
         return
 
-    # 4) union-find clusters
     parent = {k: k for k in profiles}
 
     def find(x):
