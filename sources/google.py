@@ -2,19 +2,13 @@ import re
 from html import unescape
 from urllib.parse import parse_qs, quote_plus, urlparse
 
+from core.blocks import BLOCK_HINT, is_block_page
 from core.http import fetch, decode_body
 
 TAG_RE = re.compile(r"<[^>]+>")
 RESULT_RE = re.compile(
     r'<a[^>]+href="(/url\?[^"]+|https?://[^"]+)"[^>]*>\s*<h3[^>]*>(.*?)</h3>', re.I | re.S
 )
-BLOCK_MARKERS = (
-    "detected unusual traffic",
-    "Если у вас возникли проблемы с доступом к Google Поиску",
-    "enablejs",
-    "/sorry/index",
-)
-
 
 def search_google(query: str, limit: int = 10, **_) -> list[dict]:
     response = fetch(f"https://www.google.com/search?q={quote_plus(query)}&num={limit}&hl=en")
@@ -34,6 +28,6 @@ def search_google(query: str, limit: int = 10, **_) -> list[dict]:
         if len(results) >= limit:
             break
 
-    if not results and any(marker in html for marker in BLOCK_MARKERS):
-        print("[-] Google returned a bot-check / JS-only page.")
+    if not results and is_block_page(html):
+        print(f"[-] Google returned a bot-check / JS-only page. {BLOCK_HINT}")
     return results

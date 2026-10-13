@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+- HTML report: `--html FILE` writes a self-contained page (escaped, dark mode, http/https links only)
+- 13 platforms probed through public APIs/pages: GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, Hacker News, Docker Hub, Bluesky, Lichess, Chess.com, Codeberg
+- Public profile fields (name, bio, location, company, website, email) become findings; links in bios and Keybase proofs are followed as cross-links
+- Social parser knows 12 more platforms (Hacker News, Docker Hub, Lichess, Chess.com, Codeberg, PyPI, npm, Replit, Codeforces, LeetCode, Linktree, Mastodon)
+- Correlation uses shared websites and shared emails as strong signals (social-network hosts ignored)
+- On-disk request cache (`cache.enabled|ttl|dir`, `--no-cache`); block pages and errors are never cached
+- Captcha / bot-check pages are detected in every search source and reported with a hint instead of "0 results"
+- More tests (cache, block detection, API probes, new platforms, correlation, HTML escaping)
+
 ## 0.2.1
 - Search sources, platform probes and profile reads now run concurrently (`sources.parallel`, `profiles.workers`)
 - A failing source no longer breaks the whole trace

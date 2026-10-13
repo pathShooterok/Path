@@ -4,6 +4,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from core import cache
 from core.config import get_config
 
 RETRY_STATUS_CODES = {429, 502, 503, 504}
@@ -37,6 +38,10 @@ def fetch(url: str, headers: dict | None = None, timeout: float | None = None) -
         result["error"] = "Only http:// and https:// URLs are supported"
         return result
 
+    cached = cache.load(url, headers)
+    if cached is not None:
+        return cached
+
     request = Request(url, headers=_headers(headers))
 
     for attempt in range(retries + 1):
@@ -52,6 +57,7 @@ def fetch(url: str, headers: dict | None = None, timeout: float | None = None) -
                     data=data[:max_bytes],
                     error=None,
                 )
+                cache.store(url, headers, result)
                 return result
         except HTTPError as e:
             result["status"] = e.code

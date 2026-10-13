@@ -4,9 +4,10 @@ import sys
 from core.config import load_config
 from core.engine import run_trace, run_url_scan
 from output.console import print_banner, print_report
+from output.html_report import save_html
 
 
-def _finish(report, json_out):
+def _finish(report, json_out, html_out=None):
     print_report(report)
     if json_out == "-":
         print(report.to_json())
@@ -14,6 +15,9 @@ def _finish(report, json_out):
         with open(json_out, "w", encoding="utf-8") as f:
             f.write(report.to_json())
         print(f"\n[*] JSON saved to {json_out}")
+    if html_out:
+        save_html(report, html_out)
+        print(f"[*] HTML report saved to {html_out}")
 
 
 def main() -> int:
@@ -21,6 +25,10 @@ def main() -> int:
     common.add_argument("--config", default=argparse.SUPPRESS, help="Path to config.json")
     common.add_argument("--json", dest="json_out", metavar="FILE", default=argparse.SUPPRESS,
                         help="Also save the report as JSON (use - for stdout)")
+    common.add_argument("--html", dest="html_out", metavar="FILE", default=argparse.SUPPRESS,
+                        help="Also save the report as a self-contained HTML page")
+    common.add_argument("--no-cache", action="store_true", default=argparse.SUPPRESS,
+                        help="Do not use the on-disk request cache")
     common.add_argument("--no-probe", action="store_true", default=argparse.SUPPRESS,
                         help="Do not probe platforms directly for the username")
     common.add_argument("--no-profiles", action="store_true", default=argparse.SUPPRESS,
@@ -73,6 +81,8 @@ def main() -> int:
 
     args.config = getattr(args, "config", None)
     args.json_out = getattr(args, "json_out", None)
+    args.html_out = getattr(args, "html_out", None)
+    args.no_cache = getattr(args, "no_cache", False)
     args.no_profiles = getattr(args, "no_profiles", False)
     args.no_probe = getattr(args, "no_probe", False)
     overrides = {}
@@ -80,6 +90,9 @@ def main() -> int:
         overrides["trace"] = {"scan_social_profiles": False}
     if args.no_probe:
         overrides["profiles"] = {"enabled": False}
+
+    if args.no_cache:
+        overrides["cache"] = {"enabled": False}
 
     load_config(args.config, overrides)
 
@@ -91,7 +104,7 @@ def main() -> int:
         except Exception as e:
             print(f"[-] Scan failed: {e}", file=sys.stderr)
             return 1
-        _finish(report, args.json_out)
+        _finish(report, args.json_out, args.html_out)
         return 0
 
     if args.command == "trace":
@@ -101,7 +114,7 @@ def main() -> int:
         except Exception as e:
             print(f"[-] Trace failed: {e}", file=sys.stderr)
             return 1
-        _finish(report, args.json_out)
+        _finish(report, args.json_out, args.html_out)
         return 0
 
     return 1

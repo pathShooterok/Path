@@ -32,6 +32,9 @@ PATH currently supports:
 - deduplicating findings
 - retrying temporary network failures
 - caching static data that doesn't need to be read from disk 700 times
+- probing 13 platforms through public APIs and pages
+- correlating profiles by names, cross-links, shared websites and emails
+- saving a standalone HTML report
 
 No magic.  
 No private databases.  
@@ -135,21 +138,28 @@ Because apparently opening one webpage wasn't enough.
 - `trace.queries` — search queries, `{target}` is substituted
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
 - `trace.require_target_in_result` — drop search results that don't mention the target
-- `profiles.enabled|platforms|github_api` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram directly for `<platform>/<username>` and read public fields (GitHub API: name, bio, blog, publicly listed email)
+- `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Codeberg directly for the username and read public fields (name, bio, location, company, website, email, Keybase proofs)
+- `cache.enabled|ttl|dir` — on-disk cache of successful HTTP responses (default 1 hour, `.path_cache/`)
 - `scan.max_linked_pages`, `scan.follow_social_links`
 - `http.timeout|retries|backoff|user_agents`
 
-CLI: `--config FILE`, `--json FILE|-`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
+CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
+
+```bash
+python path.py trace username --html report.html
+```
+
+If a search engine answers with a captcha or bot check, PATH says so and suggests waiting, changing network or using another source.
 
 Google is disabled by default: it almost always serves a JS-only page to non-browser clients.
 
 ## Social profile parser
 
-`extractors/social.py` recognises ~20 platforms (GitHub, GitLab, X, Telegram, VK, YouTube, TikTok,
-Instagram, Reddit, Steam, Habr, ...), filters out non-profile pages (`/login`, `/status/..`, repos),
+`extractors/social.py` recognises ~30 platforms (GitHub, GitLab, X, Telegram, VK, YouTube, TikTok,
+Instagram, Reddit, Steam, Habr, Hacker News, Docker Hub, Lichess, Codeberg, ...), filters out non-profile pages (`/login`, `/status/..`, repos),
 canonicalises URLs and scores how close the profile username is to the traced target.
 
-Tests: `python tests/test_social.py && python tests/test_sources.py`
+Tests: `python -m unittest discover -s tests -t .`
 
 ## Help
 
@@ -225,7 +235,12 @@ You decide what the evidence means.
 ```text
 Path/
 ├── core/
+│   ├── blocks.py
+│   ├── cache.py
+│   ├── config.py
+│   ├── correlate.py
 │   ├── engine.py
+│   ├── http.py
 │   └── models.py
 │
 ├── extractors/
@@ -241,10 +256,12 @@ Path/
 │   ├── bing.py
 │   ├── duckduckgo.py
 │   ├── google.py
+│   ├── profiles.py
 │   └── web.py
 │
 ├── output/
-│   └── console.py
+│   ├── console.py
+│   └── html_report.py
 │
 ├── core/data/
 │
@@ -256,7 +273,7 @@ Path/
 
 ## Current state
 
-`v0.2.0`
+`v0.3.0`
 
 This is an early version.
 
@@ -275,8 +292,6 @@ Some things I'd like to add eventually:
 - stronger identity correlation
 - more extractors
 - better URL handling
-- improved output formats
-- JSON export
 - more useful confidence scoring
 - probably several bugs I haven't discovered yet
 

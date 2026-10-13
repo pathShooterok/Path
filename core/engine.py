@@ -357,12 +357,64 @@ def run_trace(target: str, only_sources: list[str] | None = None):
     return report
 
 
+def _github_fields(data):
+    blog = data.get("blog") or ""
+    if blog and not blog.startswith("http"):
+        blog = "https://" + blog
+    return {
+        "name": data.get("name"),
+        "bio": data.get("bio"),
+        "location": data.get("location"),
+        "company": data.get("company"),
+        "website": blog,
+        "email": data.get("email"),
+        "links": [f"https://x.com/{data['twitter_username']}"] if data.get("twitter_username") else [],
+    }
+
+
+def _add_profile_fields(report, profile, fields, source_type, confidence, extra_links=()):
+    url = profile["url"]
+    platform = profile["platform"]
+
+    def add(kind, value, label, level=confidence):
+        if value:
+            _add_finding(report, Finding(kind=kind, value=value, source=url,
+                                         evidence=f"{label} from {platform} public profile",
+                                         confidence=level, source_type=source_type))
+
+    add("name", fields.get("name"), "Display name")
+    add("text", fields.get("bio"), "Bio")
+    add("text", fields.get("location"), "Location")
+    add("text", fields.get("company"), "Company")
+
+    website = fields.get("website")
+    if website:
+        if not website.startswith("http"):
+            website = "https://" + website
+        add("link", website, "Website")
+
+    emails = []
+    if fields.get("email"):
+        emails.append(fields["email"])
+    emails.extend(extract_emails(fields.get("bio") or ""))
+    if emails:
+        _add_email_findings(report, list(dict.fromkeys(emails)), url, source_type, confidence)
+
+    links = list(extra_links) + list(fields.get("links") or [])
+    if fields.get("bio"):
+        links.extend(item["url"] for item in find_social_in_text(fields["bio"]))
+    if links:
+        _add_social_findings(report, links, url, source_type, linked=True)
+
+
 def _probe_known_platforms(report, target):
     print(f"[*] Probing known platforms for username: {target}")
     found = probe_profiles(target)
+    cfg = get_config()
 
     for profile in found:
         variant = profile.get("variant")
+        level = "low" if variant else "medium"
         _add_finding(
             report,
             Finding(
@@ -376,51 +428,24 @@ def _probe_known_platforms(report, target):
                     f"Profile page exists for username '{target}' "
                     "(existence only: not verified to be the same person)"
                 ),
-                confidence="low" if variant else "medium",
+                confidence=level,
                 source_type="profile_probe",
             ),
         )
-        if profile.get("name"):
-            _add_finding(
-                report,
-                Finding(kind="name", value=profile["name"], source=profile["url"],
-                        evidence=f"Display name from {profile['platform']} public profile",
-                        confidence="low" if variant else "medium",
-                        source_type="profile_probe"),
-            )
+
+        fields = profile.get("fields") or {}
+        if profile["platform"] == "GitHub" and cfg["profiles"]["github_api"]:
+            data = github_api(profile["username"])
+            if data:
+                fields = _github_fields(data)
+                level = "low" if variant else "high"
+        if fields:
+            _add_profile_fields(report, profile, fields, "profile_probe", level,
+                                extra_links=profile.get("proofs") or ())
+
         if profile.get("html"):
             _analyze_page(report, profile["html"], profile["url"], "profile_probe",
                           "low" if variant else "medium", linked=True)
-
-        if profile["platform"] == "GitHub" and get_config()["profiles"]["github_api"]:
-            _add_github_api_findings(report, profile["username"], profile["url"])
-
-
-def _add_github_api_findings(report, username, url):
-    data = github_api(username)
-    if not data:
-        return
-
-    def add(kind, value, evidence, confidence="high"):
-        if value:
-            _add_finding(report, Finding(kind=kind, value=value, source=url,
-                                         evidence=evidence, confidence=confidence,
-                                         source_type="github_api"))
-
-    add("name", data.get("name"), "Name from public GitHub profile")
-    add("text", data.get("bio"), "Bio from public GitHub profile", "medium")
-    add("text", data.get("location"), "Location from public GitHub profile", "medium")
-    add("text", data.get("company"), "Company from public GitHub profile", "medium")
-    if data.get("twitter_username"):
-        _add_social_findings(report, [f"https://x.com/{data['twitter_username']}"],
-                             url, "github_api", linked=True)
-    if data.get("blog"):
-        blog = data["blog"] if data["blog"].startswith("http") else "https://" + data["blog"]
-        add("link", blog, "Website from public GitHub profile", "high")
-    if data.get("email"):
-        _add_email_findings(report, [data["email"]], url, "github_api", "high")
-    if data.get("bio"):
-        _add_email_findings(report, extract_emails(data["bio"]), url, "github_api", "high")
 
 
 def _scan_profiles(report, target, profiles, trace_cfg):

@@ -103,6 +103,55 @@ PLATFORMS = [
      "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
      "reserved": {"search", "galleries", "joblist", "live", "assets", "about", "gallery"},
      "canonical": "https://www.behance.net/{user}"},
+    {"name": "HackerNews", "hosts": ["news.ycombinator.com"],
+     "paths": [r"^/user/?$"], "query_param": "id",
+     "reserved": set(),
+     "canonical": "https://news.ycombinator.com/user?id={user}"},
+    {"name": "DockerHub", "hosts": ["hub.docker.com"],
+     "paths": [r"^/u/(?P<user>[A-Za-z0-9_.\-]{2,64})", r"^/r/(?P<user>[A-Za-z0-9_.\-]{2,64})/"],
+     "reserved": set(),
+     "canonical": "https://hub.docker.com/u/{user}"},
+    {"name": "Lichess", "hosts": ["lichess.org"],
+     "paths": [r"^/@/(?P<user>[A-Za-z0-9_\-]{2,30})"],
+     "reserved": set(),
+     "canonical": "https://lichess.org/@/{user}"},
+    {"name": "Chess.com", "hosts": ["chess.com"],
+     "paths": [r"^/member/(?P<user>[A-Za-z0-9_\-]{2,30})"],
+     "reserved": set(),
+     "canonical": "https://www.chess.com/member/{user}"},
+    {"name": "Codeberg", "hosts": ["codeberg.org"],
+     "paths": [rf"^/(?P<user>{_U})/?$"],
+     "reserved": {"explore", "user", "login", "issues", "pulls", "notifications", "admin",
+                  "org", "repo", "api", "assets", "attachments", "avatars"},
+     "canonical": "https://codeberg.org/{user}"},
+    {"name": "PyPI", "hosts": ["pypi.org"],
+     "paths": [r"^/user/(?P<user>[A-Za-z0-9_.\-]{2,64})"],
+     "reserved": set(),
+     "canonical": "https://pypi.org/user/{user}/"},
+    {"name": "npm", "hosts": ["npmjs.com"],
+     "paths": [r"^/~(?P<user>[A-Za-z0-9_.\-]{2,64})"],
+     "reserved": set(),
+     "canonical": "https://www.npmjs.com/~{user}"},
+    {"name": "Replit", "hosts": ["replit.com"],
+     "paths": [r"^/@(?P<user>[A-Za-z0-9_]{2,40})"],
+     "reserved": set(),
+     "canonical": "https://replit.com/@{user}"},
+    {"name": "Codeforces", "hosts": ["codeforces.com"],
+     "paths": [r"^/profile/(?P<user>[A-Za-z0-9_.\-]{2,40})"],
+     "reserved": set(),
+     "canonical": "https://codeforces.com/profile/{user}"},
+    {"name": "LeetCode", "hosts": ["leetcode.com"],
+     "paths": [r"^/u/(?P<user>[A-Za-z0-9_.\-]{2,40})"],
+     "reserved": set(),
+     "canonical": "https://leetcode.com/u/{user}/"},
+    {"name": "Linktree", "hosts": ["linktr.ee"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_.]{2,40})/?$"],
+     "reserved": {"login", "register", "pricing", "s", "discover"},
+     "canonical": "https://linktr.ee/{user}"},
+    {"name": "Mastodon", "hosts": ["mastodon.social"],
+     "paths": [r"^/@(?P<user>[A-Za-z0-9_]{1,30})/?$"],
+     "reserved": set(),
+     "canonical": "https://mastodon.social/@{user}"},
 ]
 
 SUBDOMAIN_PLATFORMS = {
@@ -149,6 +198,13 @@ def parse_social_url(url: str) -> dict | None:
             m = regex.match(path)
             if not m:
                 continue
+            if platform.get("query_param"):
+                from urllib.parse import parse_qs
+                user = parse_qs(parsed.query).get(platform["query_param"], [None])[0]
+                if not user or not re.fullmatch(r"[A-Za-z0-9_\-]{2,32}", user):
+                    continue
+                return {"platform": platform["name"], "username": user,
+                        "url": platform["canonical"].format(user=user), "kind": "profile"}
             if "user" not in regex.groupindex:
                 from urllib.parse import parse_qs
                 uid = parse_qs(parsed.query).get("id", [None])[0]

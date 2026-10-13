@@ -20,6 +20,11 @@ DEFAULTS = {
             "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
         ],
     },
+    "cache": {
+        "enabled": True,
+        "ttl": 3600,
+        "dir": ".path_cache",
+    },
     "sources": {
         "order": ["duckduckgo", "bing", "google"],
         "delay_between": 1.0,
@@ -37,7 +42,8 @@ DEFAULTS = {
     },
     "profiles": {
         "enabled": True,
-        "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"],
+        "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram",
+                      "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg"],
         "github_api": True,
         "workers": 6,
         "try_variants": True,

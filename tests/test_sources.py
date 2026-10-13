@@ -157,20 +157,25 @@ class Parallel(unittest.TestCase):
         import time
         from sources import profiles
 
+        calls = []
+
         def slow_fetch(url, headers=None, timeout=None):
+            calls.append(url)
             time.sleep(0.2)
             if "api/v4/users" in url:
                 return fake(b'[{"username": "bobacat", "name": "B", "web_url": "https://gitlab.com/bobacat"}]')
             return {**fake(b'<html class="tgme_page_title">ok</html>'), "final_url": url}
 
         started = time.monotonic()
+        from core.config import get_config
+        get_config()["sources"]["delay_between"] = 0
         with mock.patch("sources.profiles.fetch", side_effect=slow_fetch):
             found = profiles.probe_profiles("bobacat")
         elapsed = time.monotonic() - started
 
         self.assertEqual([p["platform"] for p in found],
-                         ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram"])
-        self.assertLess(elapsed, 0.9)
+                         ["GitHub", "GitLab", "Habr", "DEV", "Pikabu", "Telegram"])
+        self.assertLess(elapsed, len(calls) * 0.2 / 3)
 
     def test_sources_run_concurrently_and_dedupe_in_order(self):
         import time
@@ -253,7 +258,7 @@ class Probes(unittest.TestCase):
         self.assertTrue(r["GitHub"]["variant"])
         self.assertEqual(r["GitHub"]["username"], "boba-40404")
         self.assertFalse(r["GitLab"]["variant"])
-        self.assertEqual(r["GitLab"]["name"], "Boba")
+        self.assertEqual(r["GitLab"]["fields"]["name"], "Boba")
 
 
 if __name__ == "__main__":

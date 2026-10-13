@@ -2,6 +2,7 @@ import re
 from html import unescape
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
+from core.blocks import BLOCK_HINT, is_block_page
 from core.http import fetch, decode_body
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -37,14 +38,14 @@ def search_duckduckgo(query: str, limit: int = 10, **_) -> list[dict]:
         return []
 
     html = decode_body(response)
-    if "anomaly" in html.lower() and "result__a" not in html:
-        print("[-] DuckDuckGo returned a bot-check page.")
-        return []
-
     if "result__a" not in html:
         no_results = "no results" in html.lower() or "нет результатов" in html.lower()
-        print("[*] DuckDuckGo: no results for this query." if no_results
-              else f"[-] DuckDuckGo: unexpected page ({len(html)} chars), likely blocked.")
+        if is_block_page(html):
+            print(f"[-] DuckDuckGo returned a bot-check page. {BLOCK_HINT}")
+        elif no_results:
+            print("[*] DuckDuckGo: no results for this query.")
+        else:
+            print(f"[-] DuckDuckGo: unexpected page ({len(html)} chars). {BLOCK_HINT}")
         return []
 
     snippets = [_clean(s) for s in SNIPPET_RE.findall(html)]

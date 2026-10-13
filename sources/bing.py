@@ -3,6 +3,7 @@ import re
 from html import unescape
 from urllib.parse import parse_qs, quote_plus, urlparse
 
+from core.blocks import BLOCK_HINT, is_block_page
 from core.http import fetch, decode_body
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -43,7 +44,10 @@ def search_bing(query: str, limit: int = 10, target: str | None = None,
     html = decode_body(response)
     blocks = BLOCK_RE.findall(html)
     if not blocks:
-        print(f"[-] Bing: no results parsed ({len(html)} chars; captcha or layout change?)")
+        if is_block_page(html):
+            print(f"[-] Bing returned a captcha / bot-check page. {BLOCK_HINT}")
+        else:
+            print(f"[-] Bing: no results parsed ({len(html)} chars, layout may have changed)")
         return []
 
     results = []

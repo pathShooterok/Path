@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 from core.models import Finding
 from extractors.social import parse_social_url, translit
@@ -10,6 +11,12 @@ NOISE = {
     "with", "from", "page", "user", "users", "official", "channel", "right", "away",
     "you", "can", "now", "app", "open", "source", "encryption", "cryptography",
     "chevron", "down", "icon", "дзен", "яндекс",
+}
+
+SHARED_HOSTS = {
+    "github.com", "gitlab.com", "linkedin.com", "t.me", "vk.com", "x.com", "twitter.com",
+    "youtube.com", "instagram.com", "facebook.com", "habr.com", "dev.to", "google.com",
+    "keybase.io", "gravatar.com", "wikipedia.org", "medium.com", "reddit.com",
 }
 
 NAME_KINDS = {"name", "linked_name"}
@@ -31,6 +38,19 @@ def _tokens(text: str, drop: set[str]) -> set[str]:
             continue
         out.add(t)
     return out
+
+
+def _site_host(value: str):
+    try:
+        host = (urlparse(value).hostname or "").lower()
+    except ValueError:
+        return None
+    host = host[4:] if host.startswith("www.") else host
+    if not host or "." not in host or parse_social_url("https://" + host + "/x"):
+        return None
+    if _key(value) or host in SHARED_HOSTS:
+        return None
+    return host
 
 
 def correlate_profiles(report, target: str) -> None:
@@ -65,6 +85,28 @@ def correlate_profiles(report, target: str) -> None:
             if shared:
                 e = edges.setdefault(frozenset((a, b)), {"strong": False, "why": set()})
                 e["why"].add("name words: " + ", ".join(sorted(shared)))
+
+    sites: dict[str, set] = {}
+    mails: dict[str, set] = {}
+    for f in report.findings:
+        k = _key(f.source) if f.source else None
+        if k not in profiles:
+            continue
+        if f.kind == "link" and f.evidence.startswith("Website"):
+            host = _site_host(f.value)
+            if host:
+                sites.setdefault(host, set()).add(k)
+        elif f.kind == "email":
+            mails.setdefault(f.value.lower(), set()).add(k)
+
+    for label, groups in (("website", sites), ("email", mails)):
+        for value, members in groups.items():
+            members = sorted(members)
+            for i, a in enumerate(members):
+                for b in members[i + 1:]:
+                    e = edges.setdefault(frozenset((a, b)), {"strong": False, "why": set()})
+                    e["strong"] = True
+                    e["why"].add(f"shared {label}: {value}")
 
     for f in report.findings:
         if f.kind not in ("linked_social", "link", "linked_og_url") and f.source_type != "github_api":
