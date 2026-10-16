@@ -1,28 +1,30 @@
 BANNER = r"""
-[91m .S_sSSs           .S_SSSs          sdSS_SSSSSSbs         .S    S.   
-.SS~YS%%b         .SS~SSSSS         YSSS~S%SSSSSP        .SS    SS.  
-S%S   `S%b        S%S   SSSS             S%S             S%S    S%S  
-S%S    S%S        S%S    S%S             S%S             S%S    S%S  
-S%S    d*S        S%S SSSS%S             S&S             S%S SSSS%S  
-S&S   .S*S        S&S  SSS%S             S&S             S&S  SSS&S  
-S&S_sdSSS         S&S    S&S             S&S             S&S    S&S  
-S&S~YSSY          S&S    S&S             S&S             S&S    S&S  
-S*S               S*S    S&S             S*S             S*S    S*S  
-S*S               S*S    S*S             S*S             S*S    S*S  
-S*S               S*S    S*S             S*S             S*S    S*S  
-S*S               SSS    S*S             S*S             SSS    S*S  
-SP                       SP              SP                     SP   
-Y                        Y               Y                      Y    
-                                                                       [0m
+[31m                                   s                
+                                 :8      .uef^"    
+    .d``                        .88    :d88E       
+    @8Ne.   .u         u       :888ooo `888E       
+    %8888:u@88N     us888u.  -*8888888  888E .z8k  
+     `888I  888. .@88 "8888"   8888     888E~?888L 
+      888I  888I 9888  9888    8888     888E  888E 
+      888I  888I 9888  9888    8888     888E  888E 
+    uW888L  888' 9888  9888   .8888Lu=  888E  888E 
+   '*88888Nu88P  9888  9888   ^%888*    888E  888E 
+   ~ '88888F`    "888*""888"    'Y"    m888N= 888> 
+      888 ^       ^Y"   ^Y'             `Y"   888  
+      *8E                                    J88"  
+      '8>                                    @%    
+       "                                   :"       [0m
 
         PATH — OSINT & IDENTITY INTELLIGENCE
                          v{version}
+                     {author}
 """
 
 
 def print_banner():
     from core import __version__
-    print(BANNER.replace("{version}", __version__))
+    author = "By \033[38;5;88mPath_Team\033[0m"
+    print(BANNER.replace("{version}", __version__).replace("{author}", author))
 def print_report(report):
     print(f"Target: {report.target}")
     print("────────────────────────────────────────")
