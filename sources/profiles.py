@@ -1,3 +1,4 @@
+import html as html_lib
 import json
 import re
 import time
@@ -75,6 +76,22 @@ API_PROBES = {
         "fields": {"name": ["full_name"], "bio": ["description"], "website": ["website"],
                    "location": ["location"], "email": ["email"]},
     },
+    "Mastodon": {
+        "api": "https://mastodon.social/api/v1/accounts/lookup?acct={u}",
+        "url": "https://mastodon.social/@{u}",
+        "valid": r"^[A-Za-z0-9_]{1,30}$",
+        "require": "id",
+        "strip_html": True,
+        "fields": {"name": ["display_name"], "bio": ["note"]},
+    },
+    "Gravatar": {
+        "api": "https://en.gravatar.com/{u}.json",
+        "url": "https://gravatar.com/{u}",
+        "valid": r"^[A-Za-z0-9_\-]{3,40}$",
+        "require": "entry.0.hash",
+        "fields": {"name": ["entry.0.displayName"], "bio": ["entry.0.aboutMe"],
+                   "location": ["entry.0.currentLocation"], "website": ["entry.0.urls.0.value"]},
+    },
 }
 
 PROBES = {**PAGE_PROBES, **API_PROBES}
@@ -82,25 +99,38 @@ PROBES = {**PAGE_PROBES, **API_PROBES}
 DEFAULT_ORDER = [
     "GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram",
     "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg",
+    "Mastodon", "Gravatar",
 ]
 
 
 def _dig(data, path: str):
     for part in path.split("."):
-        if not isinstance(data, dict):
+        if isinstance(data, dict):
+            data = data.get(part)
+        elif isinstance(data, list) and part.isdigit():
+            index = int(part)
+            data = data[index] if index < len(data) else None
+        else:
             return None
-        data = data.get(part)
     return data
 
 
-def extract_fields(mapping: dict, data) -> dict:
+def _strip_html(text: str) -> str:
+    text = re.sub(r"(?i)<br\s*/?>|</p>", "\n", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    return html_lib.unescape(text).strip()
+
+
+def extract_fields(mapping: dict, data, strip_html: bool = False) -> dict:
     fields = {}
     for key, paths in mapping.items():
         values = []
         for path in paths:
             value = _dig(data, path)
             if isinstance(value, (str, int, float)) and str(value).strip():
-                values.append(str(value).strip())
+                text = str(value).strip()
+                values.append(_strip_html(text) if strip_html else text)
+        values = [v for v in values if v]
         if values:
             fields[key] = "\n".join(values)
     return fields
@@ -197,7 +227,8 @@ def _probe_api(name: str, spec: dict, username: str):
         if isinstance(data, dict) and _dig(data, spec.get("require", "")) not in (None, "", [], {}):
             profile = {"platform": name, "username": username,
                        "url": spec["url"].format(u=username), "html": "",
-                       "fields": extract_fields(spec.get("fields", {}), data), "proofs": []}
+                       "fields": extract_fields(spec.get("fields", {}), data, spec.get("strip_html", False)),
+                       "proofs": []}
 
     return profile, _api_label(response, profile is not None)
 

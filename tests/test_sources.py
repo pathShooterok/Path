@@ -60,7 +60,7 @@ class Sources(unittest.TestCase):
         self.assertIn(("social", "GitHub: https://github.com/johndoe"), kinds)
         self.assertIn(("email", "john@gmail.com"), kinds)
         self.assertIn(("email", "johndoe.real@proton.me"), kinds)
-        self.assertIn(("linked_social", "Telegram: https://t.me/johndoe"), kinds)
+        self.assertIn(("social", "Telegram: https://t.me/johndoe"), kinds)
         self.assertTrue(any(f.kind == "social" and "x.com/john_doe" in f.value for f in rep.findings))
 
     def test_relevance_filter_drops_noise(self):

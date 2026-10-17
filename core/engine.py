@@ -4,10 +4,12 @@ from urllib.parse import urlparse, urlunparse
 from core.models import Finding, new_report
 
 from core.config import get_config
+from core.cleanup import clean_report
 from core.correlate import correlate_profiles
 from sources import run_search
 from sources.web import fetch_url
 from sources.profiles import probe_profiles, github_api
+from sources import discord as discord_source
 
 from extractors.email import extract_emails
 from extractors.links import extract_links
@@ -352,7 +354,9 @@ def run_trace(target: str, only_sources: list[str] | None = None):
     if trace_cfg["scan_social_profiles"]:
         _scan_profiles(report, target, profiles, trace_cfg)
 
+    _add_discord_invites(report)
     correlate_profiles(report, target)
+    clean_report(report)
 
     return report
 
@@ -446,6 +450,48 @@ def _probe_known_platforms(report, target):
         if profile.get("html"):
             _analyze_page(report, profile["html"], profile["url"], "profile_probe",
                           "low" if variant else "medium", linked=True)
+
+
+def _add_discord_invites(report):
+    if not discord_source.enabled():
+        return
+    limit = get_config()["scan"].get("max_discord_invites", 3)
+    seen = []
+    for finding in list(report.findings):
+        if finding.kind not in ("social", "linked_social"):
+            continue
+        parsed = parse_social_url(finding.value.split(": ", 1)[-1])
+        if not parsed or parsed["platform"] != "Discord" or parsed.get("kind") != "invite":
+            continue
+        if parsed["username"] in seen:
+            continue
+        seen.append(parsed["username"])
+        if len(seen) > limit:
+            break
+
+        info = discord_source.invite_info(parsed["username"])
+        if not info:
+            continue
+        url = parsed["url"]
+        if info.get("server"):
+            members = f" ({info['members']} members)" if info.get("members") else ""
+            _add_finding(report, Finding(
+                kind="text", value=f"Discord server: {info['server']}{members}", source=url,
+                evidence="Public Discord invite metadata", confidence="medium",
+                source_type="discord_invite"))
+        if info.get("description"):
+            _add_finding(report, Finding(
+                kind="text", value=info["description"], source=url,
+                evidence="Discord server description", confidence="low",
+                source_type="discord_invite"))
+        if info.get("inviter"):
+            label = info["inviter"]
+            if info.get("inviter_name"):
+                label = f"{info['inviter_name']} (@{info['inviter']})"
+            _add_finding(report, Finding(
+                kind="name", value=label, source=url,
+                evidence="Discord account that created the invite", confidence="medium",
+                source_type="discord_invite"))
 
 
 def _scan_profiles(report, target, profiles, trace_cfg):
@@ -634,4 +680,6 @@ def run_url_scan(url: str):
             "linked_page", "medium", linked=True,
         )
 
+    _add_discord_invites(report)
+    clean_report(report)
     return report

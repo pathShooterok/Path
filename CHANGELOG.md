@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+- Report cleanup (`cleanup.*`, `--raw` to disable): duplicate findings are merged ("seen N times"), the same profile found through several routes is shown once, placeholder emails (`example@example.com`) and junk page titles ("Just a moment...", "404") are dropped, overlong values are truncated
+- Discord: invite links (`discord.gg/...`, `discord.com/invite/...`) and user-ID links are recognised; public invite metadata (server name, member count, the account that created the invite) is added to the report (`scan.discord_invites`)
+- Social parser: 18 more platforms (Spotify, SoundCloud, Last.fm, Flickr, Vimeo, Patreon, Ko-fi, Threads, Snapchat, Roblox, Gravatar, About.me, Pastebin, Bitbucket, HackerOne, Kaggle, Dribbble, VSCO, Product Hunt)
+- Direct probes for Mastodon (mastodon.social) and Gravatar; API field paths can now index into lists, bios can be stripped of HTML
+- Banner credit line (`By Path_Team`)
+
 ## 0.3.0
 - HTML report: `--html FILE` writes a self-contained page (escaped, dark mode, http/https links only)
 - 13 platforms probed through public APIs/pages: GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, Hacker News, Docker Hub, Bluesky, Lichess, Chess.com, Codeberg

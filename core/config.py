@@ -43,14 +43,23 @@ DEFAULTS = {
     "profiles": {
         "enabled": True,
         "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram",
-                      "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg"],
+                      "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg",
+                      "Mastodon", "Gravatar"],
         "github_api": True,
         "workers": 6,
         "try_variants": True,
     },
+    "cleanup": {
+        "enabled": True,
+        "drop_test_emails": True,
+        "drop_junk_text": True,
+        "max_value_length": 300,
+    },
     "scan": {
         "max_linked_pages": 10,
         "follow_social_links": True,
+        "discord_invites": True,
+        "max_discord_invites": 3,
     },
 }
 

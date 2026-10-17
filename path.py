@@ -29,6 +29,8 @@ def main() -> int:
                         help="Also save the report as a self-contained HTML page")
     common.add_argument("--no-cache", action="store_true", default=argparse.SUPPRESS,
                         help="Do not use the on-disk request cache")
+    common.add_argument("--raw", action="store_true", default=argparse.SUPPRESS,
+                        help="Keep duplicates and junk: skip the report cleanup")
     common.add_argument("--no-probe", action="store_true", default=argparse.SUPPRESS,
                         help="Do not probe platforms directly for the username")
     common.add_argument("--no-profiles", action="store_true", default=argparse.SUPPRESS,
@@ -83,6 +85,7 @@ def main() -> int:
     args.json_out = getattr(args, "json_out", None)
     args.html_out = getattr(args, "html_out", None)
     args.no_cache = getattr(args, "no_cache", False)
+    args.raw = getattr(args, "raw", False)
     args.no_profiles = getattr(args, "no_profiles", False)
     args.no_probe = getattr(args, "no_probe", False)
     overrides = {}
@@ -91,6 +94,8 @@ def main() -> int:
     if args.no_probe:
         overrides["profiles"] = {"enabled": False}
 
+    if args.raw:
+        overrides["cleanup"] = {"enabled": False}
     if args.no_cache:
         overrides["cache"] = {"enabled": False}
 

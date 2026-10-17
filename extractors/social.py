@@ -152,6 +152,98 @@ PLATFORMS = [
      "paths": [r"^/@(?P<user>[A-Za-z0-9_]{1,30})/?$"],
      "reserved": set(),
      "canonical": "https://mastodon.social/@{user}"},
+    {"name": "Discord", "hosts": ["discord.gg", "discord.com", "discordapp.com", "discord.me", "dsc.gg"],
+     "variants": [
+         (r"^/invite/(?P<user>[A-Za-z0-9\-]{2,32})/?$", "https://discord.gg/{user}", "invite", None),
+         (r"^/users/(?P<user>\d{15,21})/?$", "https://discord.com/users/{user}", "profile", None),
+         (r"^/(?P<user>[A-Za-z0-9\-]{2,32})/?$", "https://discord.gg/{user}", "invite",
+          {"discord.gg", "dsc.gg", "discord.me"}),
+     ],
+     "paths": [], "reserved": {"invite", "users", "login", "register", "download"}},
+    {"name": "Spotify", "hosts": ["open.spotify.com"],
+     "paths": [r"^/user/(?P<user>[A-Za-z0-9_.\-]{2,64})"],
+     "reserved": set(),
+     "canonical": "https://open.spotify.com/user/{user}"},
+    {"name": "SoundCloud", "hosts": ["soundcloud.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{3,40})/?$"],
+     "reserved": {"discover", "stream", "upload", "you", "search", "charts", "pages", "people",
+                  "settings", "terms-of-use", "jobs", "mobile", "login", "community-guidelines"},
+     "canonical": "https://soundcloud.com/{user}"},
+    {"name": "Last.fm", "hosts": ["last.fm", "lastfm.ru"],
+     "paths": [r"^/(?:[a-z]{2}/)?user/(?P<user>[A-Za-z0-9_\-]{2,15})"],
+     "reserved": set(),
+     "canonical": "https://www.last.fm/user/{user}"},
+    {"name": "Flickr", "hosts": ["flickr.com"],
+     "paths": [r"^/(?:people|photos)/(?P<user>[A-Za-z0-9_@.\-]{2,40})"],
+     "reserved": {"explore", "search", "upload", "tags", "map", "commons"},
+     "canonical": "https://www.flickr.com/people/{user}"},
+    {"name": "Vimeo", "hosts": ["vimeo.com"],
+     "paths": [r"^/(?P<user>[A-Za-z][A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"upload", "watch", "features", "pricing", "about", "blog", "help", "log_in",
+                  "join", "search", "categories", "channels", "groups", "stock", "enterprise",
+                  "solutions", "create", "business", "ott", "producer"},
+     "canonical": "https://vimeo.com/{user}"},
+    {"name": "Patreon", "hosts": ["patreon.com"],
+     "paths": [r"^/(?:c/)?(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"login", "signup", "explore", "home", "pricing", "about", "policy", "product",
+                  "creators", "c", "bepatron", "join", "search", "pledges", "settings"},
+     "canonical": "https://www.patreon.com/{user}"},
+    {"name": "Ko-fi", "hosts": ["ko-fi.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_]{2,40})/?$"],
+     "reserved": {"explore", "login", "register", "about", "gold", "post", "home", "terms", "privacy"},
+     "canonical": "https://ko-fi.com/{user}"},
+    {"name": "Threads", "hosts": ["threads.net", "threads.com"],
+     "paths": [r"^/@(?P<user>[A-Za-z0-9_.]{1,30})"],
+     "reserved": set(),
+     "canonical": "https://www.threads.net/@{user}"},
+    {"name": "Snapchat", "hosts": ["snapchat.com"],
+     "paths": [r"^/add/(?P<user>[A-Za-z0-9_.\-]{3,15})", r"^/@(?P<user>[A-Za-z0-9_.\-]{3,15})"],
+     "reserved": set(),
+     "canonical": "https://www.snapchat.com/add/{user}"},
+    {"name": "Roblox", "hosts": ["roblox.com", "web.roblox.com"],
+     "paths": [r"^/users/(?P<user>\d{1,12})/profile"],
+     "reserved": set(),
+     "canonical": "https://www.roblox.com/users/{user}/profile"},
+    {"name": "Gravatar", "hosts": ["gravatar.com", "en.gravatar.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{3,40})/?$"],
+     "reserved": {"connect", "avatar", "site", "emails", "profiles", "hovercards", "login", "support"},
+     "canonical": "https://gravatar.com/{user}"},
+    {"name": "About.me", "hosts": ["about.me"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"login", "signup", "about", "blog", "pricing", "explore", "discover"},
+     "canonical": "https://about.me/{user}"},
+    {"name": "Pastebin", "hosts": ["pastebin.com"],
+     "paths": [r"^/u/(?P<user>[A-Za-z0-9_\-]{2,40})"],
+     "reserved": set(),
+     "canonical": "https://pastebin.com/u/{user}"},
+    {"name": "Bitbucket", "hosts": ["bitbucket.org"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"product", "account", "dashboard", "repo", "support", "blog", "features",
+                  "login", "workspaces", "explore"},
+     "canonical": "https://bitbucket.org/{user}/"},
+    {"name": "HackerOne", "hosts": ["hackerone.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"hacktivity", "directory", "leaderboard", "users", "bug-bounty-programs",
+                  "login", "sign_up", "security", "resources", "reports", "opportunities"},
+     "canonical": "https://hackerone.com/{user}"},
+    {"name": "Kaggle", "hosts": ["kaggle.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"competitions", "datasets", "code", "learn", "discussion", "models", "docs",
+                  "account", "login", "search", "organizations", "benchmarks"},
+     "canonical": "https://www.kaggle.com/{user}"},
+    {"name": "Dribbble", "hosts": ["dribbble.com"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"shots", "designers", "jobs", "tags", "search", "session", "signup", "stories",
+                  "pro", "hiring", "about", "following", "courses"},
+     "canonical": "https://dribbble.com/{user}"},
+    {"name": "VSCO", "hosts": ["vsco.co"],
+     "paths": [r"^/(?P<user>[A-Za-z0-9_\-]{2,40})/?$"],
+     "reserved": {"discover", "explore", "about", "login", "feed", "search"},
+     "canonical": "https://vsco.co/{user}"},
+    {"name": "ProductHunt", "hosts": ["producthunt.com"],
+     "paths": [r"^/@(?P<user>[A-Za-z0-9_\-]{2,40})"],
+     "reserved": set(),
+     "canonical": "https://www.producthunt.com/@{user}"},
 ]
 
 SUBDOMAIN_PLATFORMS = {
@@ -166,6 +258,7 @@ _SUBDOMAIN_IGNORE = {"www", "m", "api", "help", "support", "blog", "static", "cd
 _HOST_INDEX: dict[str, dict] = {}
 for _p in PLATFORMS:
     _p["_paths"] = [re.compile(x) for x in _p["paths"]]
+    _p["_variants"] = [(re.compile(r), c, k, h) for r, c, k, h in _p.get("variants", [])]
     for _h in _p["hosts"]:
         _HOST_INDEX[_h] = _p
 
@@ -193,6 +286,17 @@ def parse_social_url(url: str) -> dict | None:
     path = unquote(parsed.path or "/")
 
     platform = _HOST_INDEX.get(host)
+    if platform and platform["_variants"]:
+        for regex, canonical, kind, hosts in platform["_variants"]:
+            m = regex.match(path)
+            if not m or (hosts and host not in hosts):
+                continue
+            user = m.group("user")
+            if user.lower() in platform["reserved"]:
+                return None
+            return {"platform": platform["name"], "username": user,
+                    "url": canonical.format(user=user), "kind": kind}
+        return None
     if platform:
         for regex in platform["_paths"]:
             m = regex.match(path)

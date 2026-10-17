@@ -35,6 +35,8 @@ PATH currently supports:
 - probing 13 platforms through public APIs and pages
 - correlating profiles by names, cross-links, shared websites and emails
 - saving a standalone HTML report
+- merging duplicate findings and dropping junk (placeholder emails, "404" titles)
+- reading public Discord invite metadata
 
 No magic.  
 No private databases.  
@@ -138,12 +140,14 @@ Because apparently opening one webpage wasn't enough.
 - `trace.queries` — search queries, `{target}` is substituted
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
 - `trace.require_target_in_result` — drop search results that don't mention the target
-- `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Codeberg directly for the username and read public fields (name, bio, location, company, website, email, Keybase proofs)
+- `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Codeberg, Mastodon, Gravatar directly for the username and read public fields (name, bio, location, company, website, email, Keybase proofs)
+- `cleanup.enabled|drop_test_emails|drop_junk_text|max_value_length` — report cleanup, `--raw` turns it off for one run
+- `scan.discord_invites|max_discord_invites` — look up public Discord invites found on pages
 - `cache.enabled|ttl|dir` — on-disk cache of successful HTTP responses (default 1 hour, `.path_cache/`)
 - `scan.max_linked_pages`, `scan.follow_social_links`
 - `http.timeout|retries|backoff|user_agents`
 
-CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
+CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--raw`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
 
 ```bash
 python path.py trace username --html report.html
@@ -151,11 +155,13 @@ python path.py trace username --html report.html
 
 If a search engine answers with a captcha or bot check, PATH says so and suggests waiting, changing network or using another source.
 
+Discord has no public username lookup, so Path does not probe it by nickname: it recognises invite and user-ID links found on pages and reads the public invite metadata.
+
 Google is disabled by default: it almost always serves a JS-only page to non-browser clients.
 
 ## Social profile parser
 
-`extractors/social.py` recognises ~30 platforms (GitHub, GitLab, X, Telegram, VK, YouTube, TikTok,
+`extractors/social.py` recognises ~50 platforms (GitHub, GitLab, X, Telegram, VK, YouTube, TikTok,
 Instagram, Reddit, Steam, Habr, Hacker News, Docker Hub, Lichess, Codeberg, ...), filters out non-profile pages (`/login`, `/status/..`, repos),
 canonicalises URLs and scores how close the profile username is to the traced target.
 
@@ -273,7 +279,7 @@ Path/
 
 ## Current state
 
-`v0.3.0`
+`v0.4.0`
 
 This is an early version.
 
