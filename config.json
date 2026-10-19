@@ -17,7 +17,13 @@
     "require_target_in_result": true,
     "scan_social_profiles": true,
     "max_profiles": 5,
-    "min_profile_match": "normalized"
+    "min_profile_match": "normalized",
+    "ignore_domains": [
+      "dictionary.com", "dictionary.cambridge.org", "merriam-webster.com",
+      "thefreedictionary.com", "collinsdictionary.com", "wiktionary.org",
+      "oxfordlearnersdictionaries.com", "lexico.com", "vocabulary.com",
+      "thesaurus.com", "wordreference.com", "slovar.cc", "gramota.ru"
+    ]
   },
   "profiles": {
     "enabled": true,
@@ -25,6 +31,11 @@
     "github_api": true,
     "workers": 6,
     "try_variants": true
+  },
+  "breaches": {
+    "enabled": false,
+    "max_emails": 3,
+    "only_personal": true
   },
   "cleanup": {
     "enabled": true,

@@ -37,6 +37,7 @@ PATH currently supports:
 - saving a standalone HTML report
 - merging duplicate findings and dropping junk (placeholder emails, "404" titles)
 - reading public Discord invite metadata
+- checking found emails against a public breach index (names of breaches only)
 
 No magic.  
 No private databases.  
@@ -139,15 +140,17 @@ Because apparently opening one webpage wasn't enough.
 - `sources.order` / `sources.<name>.enabled|limit` — which search engines run and in what order
 - `trace.queries` — search queries, `{target}` is substituted
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
+- `trace.ignore_domains` — domains (dictionaries and the like) dropped from search results
 - `trace.require_target_in_result` — drop search results that don't mention the target
 - `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Codeberg, Mastodon, Gravatar directly for the username and read public fields (name, bio, location, company, website, email, Keybase proofs)
 - `cleanup.enabled|drop_test_emails|drop_junk_text|max_value_length` — report cleanup, `--raw` turns it off for one run
+- `breaches.enabled|max_emails|only_personal` — optional breach exposure check via XposedOrNot (free, no key; limits: 25 requests per hour per IP). Only breach names, years and data types are reported, never the leaked data. Enable per run with `--breaches`
 - `scan.discord_invites|max_discord_invites` — look up public Discord invites found on pages
 - `cache.enabled|ttl|dir` — on-disk cache of successful HTTP responses (default 1 hour, `.path_cache/`)
 - `scan.max_linked_pages`, `scan.follow_social_links`
 - `http.timeout|retries|backoff|user_agents`
 
-CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--raw`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
+CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--raw`, `--breaches`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
 
 ```bash
 python path.py trace username --html report.html
@@ -279,7 +282,7 @@ Path/
 
 ## Current state
 
-`v0.4.0`
+`v0.4.4`
 
 This is an early version.
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.4
+- Bing: the "There are no results for ..." page is now recognised and reported as such (it was shown as a layout problem); a quoted query is retried once without quotes
+
+## 0.4.3
+- Bing: if the standard result blocks are missing, a fallback parser reads result headings from the page instead of returning 0 results (captcha pages are still reported, not parsed)
+
+## 0.4.2
+- Less noise on common-word nicknames: dictionary sites are skipped in search results (`trace.ignore_domains`)
+- A site's own accounts linked from its pages (for example t.me/pikabu on a Pikabu profile) are no longer reported as the person's profiles
+- Cleanup drops platform boilerplate descriptions and titles ("N repositories available...", "Profile X on Pikabu"), names that are just the nickname, and og:url duplicates that differ only in case
+
+## 0.4.1
+- Breach exposure check (`--breaches`, `breaches.*`, off by default): personal emails found by Path are looked up in the free public XposedOrNot index. The report shows breach names, years and the kinds of data exposed; leaked data itself is never fetched or shown
+- Free tier limits are respected (a few emails per run, stops on HTTP 429)
+
 ## 0.4.0
 - Report cleanup (`cleanup.*`, `--raw` to disable): duplicate findings are merged ("seen N times"), the same profile found through several routes is shown once, placeholder emails (`example@example.com`) and junk page titles ("Just a moment...", "404") are dropped, overlong values are truncated
 - Discord: invite links (`discord.gg/...`, `discord.com/invite/...`) and user-ID links are recognised; public invite metadata (server name, member count, the account that created the invite) is added to the report (`scan.discord_invites`)

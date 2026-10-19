@@ -26,6 +26,16 @@ JUNK_TEXT = {
 }
 
 
+BOILERPLATE = [re.compile(x, re.I) for x in (
+    r"has \d+ repositories available\. follow their code on github",
+    r"^все (публикации|посты)",
+    r"все посты пользователя",
+    r"^профиль .+ на пикабу$",
+    r"^.+ - overview$",
+    r"подпишитесь на ленту",
+)]
+
+
 def _squash(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -55,7 +65,15 @@ def _is_junk(finding) -> bool:
     if not value:
         return True
     if finding.kind in TITLE_KINDS:
-        return len(value) < 2 or value.lower() in JUNK_TEXT
+        if len(value) < 2 or value.lower() in JUNK_TEXT:
+            return True
+        return any(rx.search(value) for rx in BOILERPLATE)
+    if finding.kind in ("name", "linked_name", "linked_username"):
+        owner = parse_social_url(finding.source) if finding.source else None
+        if owner and owner["username"].lower() == value.lower():
+            return True
+    if finding.kind in ("og_url", "linked_og_url") and finding.source:
+        return _url_key(value).lower() == _url_key(finding.source).lower()
     return False
 
 

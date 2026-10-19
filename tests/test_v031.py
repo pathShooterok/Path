@@ -182,3 +182,48 @@ class Discord(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Noise(unittest.TestCase):
+    def setUp(self):
+        load_config(overrides={"cache": {"enabled": False}})
+
+    def test_site_own_accounts_are_not_reported(self):
+        report = new_report("phew")
+        engine._add_social_findings(
+            report,
+            ["https://t.me/pikabu", "https://vk.com/pikabu", "https://x.com/CH6RG3"],
+            "https://pikabu.ru/@Phew", "profile_probe", linked=True, outbound_only=True)
+        self.assertEqual([f.value for f in report.findings], ["X: https://x.com/CH6RG3"])
+
+    def test_boilerplate_and_nick_as_name(self):
+        r = new_report("phew")
+        r.findings = [
+            finding("linked_description", "Phew has 24 repositories available. Follow their code on GitHub.",
+                    source="https://github.com/Phew"),
+            finding("linked_og_title", "Phew - Overview", source="https://github.com/Phew"),
+            finding("linked_name", "phew", source="https://pikabu.ru/@Phew"),
+            finding("name", "charge", source="https://github.com/Phew"),
+            finding("linked_og_url", "https://pikabu.ru/@phew", source="https://pikabu.ru/@Phew"),
+            finding("linked_og_url", "https://other.dev/page", source="https://pikabu.ru/@Phew"),
+        ]
+        clean_report(r)
+        self.assertEqual([f.value for f in r.findings], ["charge", "https://other.dev/page"])
+
+    def test_dictionary_results_are_ignored(self):
+        results = [
+            {"url": "https://dictionary.cambridge.org/dictionary/english/phew", "title": "PHEW",
+             "snippet": "", "source": "duckduckgo"},
+            {"url": "https://en.wiktionary.org/wiki/phew", "title": "phew", "snippet": "",
+             "source": "duckduckgo"},
+            {"url": "https://example.dev/phew-blog", "title": "phew blog", "snippet": "",
+             "source": "duckduckgo"},
+        ]
+        load_config(overrides={"cache": {"enabled": False}, "profiles": {"enabled": False},
+                               "trace": {"scan_social_profiles": False}})
+        with mock.patch("core.engine.run_search", return_value=results):
+            report = engine.run_trace("phew")
+        urls = [f.source for f in report.findings if f.kind == "web_result"]
+        self.assertEqual(urls, ["https://example.dev/phew-blog"])
+        self.assertTrue(engine._host_matches("https://en.wiktionary.org/wiki/x", ("wiktionary.org",)))
+        self.assertFalse(engine._host_matches("https://notwiktionary.org/", ("wiktionary.org",)))

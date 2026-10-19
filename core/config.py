@@ -39,6 +39,12 @@ DEFAULTS = {
         "scan_social_profiles": True,
         "max_profiles": 5,
         "min_profile_match": "normalized",
+        "ignore_domains": [
+            "dictionary.com", "dictionary.cambridge.org", "merriam-webster.com",
+            "thefreedictionary.com", "collinsdictionary.com", "wiktionary.org",
+            "oxfordlearnersdictionaries.com", "lexico.com", "vocabulary.com",
+            "thesaurus.com", "wordreference.com", "slovar.cc", "gramota.ru"
+        ],
     },
     "profiles": {
         "enabled": True,
@@ -48,6 +54,11 @@ DEFAULTS = {
         "github_api": True,
         "workers": 6,
         "try_variants": True,
+    },
+    "breaches": {
+        "enabled": False,
+        "max_emails": 3,
+        "only_personal": True,
     },
     "cleanup": {
         "enabled": True,

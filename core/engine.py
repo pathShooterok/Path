@@ -10,6 +10,7 @@ from sources import run_search
 from sources.web import fetch_url
 from sources.profiles import probe_profiles, github_api
 from sources import discord as discord_source
+from sources import breaches as breach_source
 
 from extractors.email import extract_emails
 from extractors.links import extract_links
@@ -257,6 +258,24 @@ def _add_identity_findings(
 MAX_SOCIAL_PER_PAGE = 20
 
 
+def _host(url: str) -> str:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return ""
+    return host[4:] if host.startswith("www.") else host
+
+
+def _host_matches(url: str, domains: tuple) -> bool:
+    host = _host(url)
+    return any(host == d or host.endswith("." + d) for d in domains)
+
+
+def _site_brand(url: str) -> str:
+    parts = _host(url).split(".")
+    return parts[-2] if len(parts) >= 2 else ""
+
+
 def _add_social_findings(report, links, source, source_type, linked=False, target=None,
                          outbound_only=False):
     profiles = extract_social_profiles(links)
@@ -264,6 +283,9 @@ def _add_social_findings(report, links, source, source_type, linked=False, targe
     own = parse_social_url(source) if outbound_only else None
     if own:
         profiles = [p for p in profiles if p["platform"] != own["platform"]]
+    if outbound_only:
+        brand = _site_brand(source)
+        profiles = [p for p in profiles if brand and p["username"].lower() != brand]
     profiles = profiles[:MAX_SOCIAL_PER_PAGE]
     kind = "linked_social" if linked else "social"
 
@@ -315,9 +337,14 @@ def run_trace(target: str, only_sources: list[str] | None = None):
 
     norm_target = _norm(target)
     dropped = 0
+    ignored = tuple(d.lower() for d in trace_cfg.get("ignore_domains", []))
 
     for result in results:
         url, title, snippet = result["url"], result["title"], result.get("snippet", "")
+
+        if ignored and _host_matches(url, ignored):
+            dropped += 1
+            continue
 
         if trace_cfg["require_target_in_result"] and len(norm_target) >= 3:
             if norm_target not in _norm(f"{url} {title} {snippet}"):
@@ -355,6 +382,7 @@ def run_trace(target: str, only_sources: list[str] | None = None):
         _scan_profiles(report, target, profiles, trace_cfg)
 
     _add_discord_invites(report)
+    _add_breach_findings(report)
     correlate_profiles(report, target)
     clean_report(report)
 
@@ -492,6 +520,47 @@ def _add_discord_invites(report):
                 kind="name", value=label, source=url,
                 evidence="Discord account that created the invite", confidence="medium",
                 source_type="discord_invite"))
+
+
+def _add_breach_findings(report):
+    if not breach_source.enabled():
+        return
+    cfg = get_config()["breaches"]
+    emails = []
+    for finding in report.findings:
+        if finding.kind != "email" or finding.value.lower() in [e.lower() for e in emails]:
+            continue
+        if cfg.get("only_personal", True) and finding.classification != "personal_candidate":
+            continue
+        emails.append(finding.value)
+    emails = emails[: cfg.get("max_emails", 3)]
+    if not emails:
+        return
+
+    print(f"[*] Checking {len(emails)} email(s) against public breach index (XposedOrNot)")
+    sources = {f.value.lower(): f.source for f in report.findings if f.kind == "email"}
+    for email, result in breach_source.check_emails(emails).items():
+        source = sources.get(email.lower(), "")
+        status = result["status"]
+        if status == "limited":
+            print("[-] XposedOrNot rate limit reached, try again later")
+            break
+        if status == "error":
+            print(f"[-] Breach check failed for {email}: {result.get('error')}")
+            continue
+        if status == "none":
+            continue
+
+        breaches = result["breaches"]
+        names = ", ".join(f"{b['name']} ({b['year']})" if b["year"] else b["name"] for b in breaches[:8])
+        more = f" and {len(breaches) - 8} more" if len(breaches) > 8 else ""
+        classes = sorted({c for b in breaches for c in b["classes"]})
+        evidence = "Email appears in public breach index (names only, no leaked data is fetched)"
+        if classes:
+            evidence += "; exposed data types: " + ", ".join(classes[:10])
+        _add_finding(report, Finding(
+            kind="breach", value=f"{email}: {len(breaches)} breach(es): {names}{more}",
+            source=source, evidence=evidence, confidence="medium", source_type="breach_index"))
 
 
 def _scan_profiles(report, target, profiles, trace_cfg):
@@ -681,5 +750,6 @@ def run_url_scan(url: str):
         )
 
     _add_discord_invites(report)
+    _add_breach_findings(report)
     clean_report(report)
     return report
