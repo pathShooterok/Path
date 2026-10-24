@@ -1,3 +1,5 @@
+from output.summary import format_summary, summarize
+
 BANNER = r"""
 [31m                                   s                
                                  :8      .uef^"    
@@ -29,6 +31,10 @@ def print_report(report):
     print(f"Target: {report.target}")
     print("────────────────────────────────────────")
     print(f"Findings: {len(report.findings)}")
+    summary = format_summary(summarize(report))
+    if summary:
+        print(f"Summary:  {summary}")
+    print("Confidence reflects evidence strength, not verified identity.")
 
     if not report.findings:
         print("\n[-] No public findings.")

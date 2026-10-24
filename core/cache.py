@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 from email import message_from_string
@@ -9,6 +10,9 @@ from pathlib import Path
 
 from core.blocks import is_block_page
 from core.config import get_config
+
+
+CACHE_FILE = re.compile(r"^[0-9a-f]{64}\.json$")
 
 
 def _settings() -> dict:
@@ -41,6 +45,31 @@ def load(url: str, headers: dict | None = None) -> dict | None:
         "error": None,
         "cached": True,
     }
+
+
+def clear() -> int:
+    root = Path(_settings()["dir"])
+    removed = 0
+    if not root.is_dir():
+        return removed
+    for entry in root.glob("??/*.json"):
+        if not CACHE_FILE.match(entry.name):
+            continue
+        try:
+            entry.unlink()
+            removed += 1
+        except OSError:
+            continue
+    for folder in root.glob("??"):
+        try:
+            folder.rmdir()
+        except OSError:
+            continue
+    try:
+        root.rmdir()
+    except OSError:
+        pass
+    return removed
 
 
 def store(url: str, headers: dict | None, result: dict) -> None:

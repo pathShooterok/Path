@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+- CLI: `--version`, `--clear-cache` (removes only PATH's own cache files), target and URL validation (empty, too long, control characters; a URL without scheme gets `https://`), clean Ctrl+C (exit code 130), documented exit codes (0, 1, 2, 130), report files are created with their folders and write errors are reported
+- Configuration is validated: wrong types and ranges are reported with the key name, unknown sections are flagged as likely typos
+- Output is forced to UTF-8 with replacement, so unusual characters no longer crash a legacy Windows console
+- Report summary line in the console and HTML ("2 profiles, 1 email, ..."); JSON reports carry the tool version
+- Probes: HTTP 401/403/429 is shown as `blocked` instead of a bare error; Codeberg (blocks automated requests) is no longer in the default platform list
+- README: install as a command, privacy and safety, limitations, exit codes
+- Packaging: Stable classifier, project URLs, `.gitattributes` for consistent line endings
+- 104 tests
+
+## 0.4.5
+- Network safety: only public http(s) destinations are fetched; URLs that resolve to local or private addresses (including redirect targets) and URLs with embedded credentials are rejected
+- Per-run limits: `http.max_requests_per_run`, `max_total_response_bytes`, `max_run_seconds`; the used budget is printed after each trace or URL scan
+- A notice lists which external services may receive the target before a trace starts
+- New flags `--no-breaches`, `--no-profile-probes` and `--no-profile-pages` (the old `--no-probe` and `--no-profiles` still work)
+- Reports state that confidence reflects evidence strength, not verified identity
+- Response bodies exactly at the size limit are no longer marked truncated
+
 ## 0.4.4
 - Bing: the "There are no results for ..." page is now recognised and reported as such (it was shown as a layout problem); a quoted query is retried once without quotes
 

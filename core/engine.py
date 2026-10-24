@@ -4,6 +4,7 @@ from urllib.parse import urlparse, urlunparse
 from core.models import Finding, new_report
 
 from core.config import get_config
+from core.http import request_budget
 from core.cleanup import clean_report
 from core.correlate import correlate_profiles
 from sources import run_search
@@ -320,11 +321,24 @@ def _analyze_page(report, html, url, source_type, confidence, linked):
     return page_links
 
 
+@request_budget
 def run_trace(target: str, only_sources: list[str] | None = None):
     cfg = get_config()
     trace_cfg = cfg["trace"]
     report = new_report(target)
 
+    source_names = only_sources or [
+        name for name in cfg["sources"]["order"]
+        if cfg["sources"].get(name, {}).get("enabled", True)
+    ]
+    external_services = [f"search engines: {', '.join(source_names)}"]
+    if cfg["profiles"].get("enabled"):
+        external_services.append(
+            f"profile probes: {', '.join(cfg['profiles'].get('platforms', []))}"
+        )
+    if cfg["breaches"].get("enabled"):
+        external_services.append("XposedOrNot may receive eligible email addresses")
+    print("[*] External lookups may receive the target identifier: " + "; ".join(external_services))
     print(f"[*] Tracing: {target}")
 
     queries = [q.replace("{target}", target) for q in trace_cfg["queries"]]
@@ -644,6 +658,7 @@ def scan_linked_pages(links: list[str], max_links: int | None = None, seen: set 
     return results
 
 
+@request_budget
 def run_url_scan(url: str):
     report = new_report(url)
 

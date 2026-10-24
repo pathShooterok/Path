@@ -25,8 +25,11 @@ class Report:
     findings: list[Finding]
 
     def to_json(self):
+        from core import __version__
         return json.dumps(
             {
+                "tool": "path",
+                "version": __version__,
                 "target": self.target,
                 "started_at": self.started_at,
                 "findings": [

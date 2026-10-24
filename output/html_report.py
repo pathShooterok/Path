@@ -1,6 +1,8 @@
 import re
 from html import escape
 
+from output.summary import format_summary, summarize
+
 CSS = """
 :root{--bg:#fff;--fg:#1c1f24;--muted:#667085;--card:#f6f7f9;--line:#e3e6ea;--high:#157f3b;--medium:#b7791f;--low:#8a8f98;--accent:#2b59c3}
 @media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e6e8eb;--muted:#9aa3ad;--card:#1d2026;--line:#2c3038;--high:#4cc277;--medium:#e0b050;--low:#8a8f98;--accent:#7aa2f7}}
@@ -97,13 +99,16 @@ def render_html(report) -> str:
     content = "".join(body) or '<p class="empty">No public findings.</p>'
 
     from core import __version__
+    summary = format_summary(summarize(report))
+    summary_line = f'<p class="meta">Summary: {escape(summary)}</p>' if summary else ""
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>Path report: {escape(report.target)}</title><style>{CSS}</style></head><body><main>"
         f"<h1>{escape(report.target)}</h1>"
+        '<p class="meta">Confidence reflects evidence strength, not verified identity.</p>'
         f'<div class="meta">Path v{escape(__version__)} · {escape(report.started_at)} · '
-        f"{len(report.findings)} findings</div>{content}</main></body></html>"
+        f"{len(report.findings)} findings</div>{summary_line}{content}</main></body></html>"
     )
 
 

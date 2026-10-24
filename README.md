@@ -82,6 +82,13 @@ python path.py --help
 
 That's it.
 
+To get a `path` command that works from any folder:
+
+```bash
+pip install -e .
+path --version
+```
+
 If it doesn't work, congratulations, you've discovered a bug.
 
 ## Usage
@@ -98,7 +105,7 @@ For example:
 python path.py trace github
 ```
 
-PATH searches public web sources and tries to find anything related to the target.
+PATH searches public web sources and tries to find anything related to the target. The target is sent to enabled search engines and, when enabled, to the configured profile platforms; the CLI prints the destinations before a trace starts.
 
 Example:
 
@@ -130,6 +137,8 @@ PATH can extract things like:
 
 It can also follow selected links and scan them.
 
+Only public HTTP(S) destinations are allowed. PATH rejects URLs that resolve to local or private IP addresses and applies the same check to redirects.
+
 Because apparently opening one webpage wasn't enough.
 
 ## Config
@@ -142,15 +151,22 @@ Because apparently opening one webpage wasn't enough.
 - `trace.scan_social_profiles`, `max_profiles`, `min_profile_match` (`exact|normalized|partial`)
 - `trace.ignore_domains` — domains (dictionaries and the like) dropped from search results
 - `trace.require_target_in_result` — drop search results that don't mention the target
-- `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Codeberg, Mastodon, Gravatar directly for the username and read public fields (name, bio, location, company, website, email, Keybase proofs)
+- `profiles.enabled|platforms|github_api|try_variants` — probe GitHub, GitLab, Habr, Keybase, DEV, Pikabu, Telegram, HackerNews, DockerHub, Bluesky, Lichess, Chess.com, Mastodon, Gravatar directly for the username (Codeberg is supported too, but it blocks automated requests, so it is off by default; add `"Codeberg"` to `profiles.platforms` to try it) and read public fields (name, bio, location, company, website, email, Keybase proofs)
 - `cleanup.enabled|drop_test_emails|drop_junk_text|max_value_length` — report cleanup, `--raw` turns it off for one run
 - `breaches.enabled|max_emails|only_personal` — optional breach exposure check via XposedOrNot (free, no key; limits: 25 requests per hour per IP). Only breach names, years and data types are reported, never the leaked data. Enable per run with `--breaches`
 - `scan.discord_invites|max_discord_invites` — look up public Discord invites found on pages
 - `cache.enabled|ttl|dir` — on-disk cache of successful HTTP responses (default 1 hour, `.path_cache/`)
 - `scan.max_linked_pages`, `scan.follow_social_links`
 - `http.timeout|retries|backoff|user_agents`
+- `http.max_requests_per_run|max_total_response_bytes|max_run_seconds` — safety limits for each trace or URL scan
 
-CLI: `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--raw`, `--breaches`, `--no-profiles`, `--no-probe`, `trace --sources duckduckgo,bing`.
+A broken `config.json` is reported with the exact key and what is wrong with it instead of a traceback; unknown top-level sections are flagged as likely typos.
+
+CLI: `--version`, `--config FILE`, `--json FILE|-`, `--html FILE`, `--no-cache`, `--clear-cache`, `--raw`, `--breaches`, `--no-breaches`, `--no-profiles` (`--no-profile-pages`), `--no-probe` (`--no-profile-probes`), `trace --sources duckduckgo,bing`.
+
+Exit codes: `0` success, `1` the scan or saving a report failed, `2` bad input or configuration, `130` interrupted with Ctrl+C.
+
+`--no-probe` prevents the target username from being sent to direct profile probes. `--no-breaches` prevents eligible email addresses from being sent to XposedOrNot. Breach checks remain disabled by default.
 
 ```bash
 python path.py trace username --html report.html
@@ -161,6 +177,21 @@ If a search engine answers with a captcha or bot check, PATH says so and suggest
 Discord has no public username lookup, so Path does not probe it by nickname: it recognises invite and user-ID links found on pages and reads the public invite metadata.
 
 Google is disabled by default: it almost always serves a JS-only page to non-browser clients.
+
+## Privacy and safety
+
+- Only public `http(s)` destinations are fetched. Addresses that resolve to local or private networks (also after redirects) and URLs with embedded credentials are rejected.
+- Every trace or scan has a budget: number of requests, total downloaded bytes and run time (`http.max_*`). The used budget is printed at the end.
+- Before a trace starts, PATH prints which outside services may receive the target (search engines, profile platforms, the breach index when enabled).
+- The breach check is off by default (`--breaches`) and never fetches leaked data: it reports breach names, years and kinds of data only.
+- The request cache lives in `.path_cache/`; `path --clear-cache` empties it. Reports, JSON files and the cache are ignored by git so personal results do not end up in the repository.
+
+## Limitations
+
+- A username that exists on a platform is not proof that the profile belongs to the person you are looking for. Common words and short nicknames produce many unrelated people; PATH marks such profiles as unconfirmed unless names, links, websites or emails connect them.
+- Search engines may answer automated requests with fewer results, a captcha or a "no results" page; PATH reports that and keeps going with the other sources. Google is disabled by default.
+- Some platforms block automated requests (HTTP 403/429); the probe line says `blocked` and the platform is skipped.
+- Private accounts, deleted pages and anything behind a login are out of scope.
 
 ## Social profile parser
 
@@ -179,7 +210,7 @@ python path.py --help
 Output:
 
 ```text
-usage: path [-h] [-url URL] {trace} ...
+usage: path [-h] [-V] [-url URL] [--clear-cache] {trace} ...
 
 Path — OSINT & Identity Intelligence
 ```
@@ -233,6 +264,8 @@ For example:
   Evidence:    Search result returned for identifier: github
 ```
 
+Confidence reflects evidence strength, not verified identity. A matching username or an existing profile is not proof that the profile belongs to the person being investigated.
+
 PATH isn't supposed to magically decide that a random search result is definitely the person you're looking for.
 
 It collects evidence.
@@ -247,6 +280,7 @@ Path/
 │   ├── blocks.py
 │   ├── cache.py
 │   ├── config.py
+│   ├── cleanup.py
 │   ├── correlate.py
 │   ├── engine.py
 │   ├── http.py
@@ -263,6 +297,8 @@ Path/
 │
 ├── sources/
 │   ├── bing.py
+│   ├── breaches.py
+│   ├── discord.py
 │   ├── duckduckgo.py
 │   ├── google.py
 │   ├── profiles.py
@@ -270,7 +306,8 @@ Path/
 │
 ├── output/
 │   ├── console.py
-│   └── html_report.py
+│   ├── html_report.py
+│   └── summary.py
 │
 ├── core/data/
 │
@@ -282,13 +319,9 @@ Path/
 
 ## Current state
 
-`v0.4.4`
+`v0.5.0` — stable release.
 
-This is an early version.
-
-Things will probably break.
-
-Some things will break in extremely creative ways.
+The core workflow (trace a username, scan a URL, read public profile data, correlate, clean up, export JSON/HTML) is covered by tests and works end to end. Platform probes depend on third-party sites, so individual ones can break when those sites change; PATH says so in the output instead of failing.
 
 If PATH suddenly starts reporting that your microwave has a GitHub account, please open an issue instead of trusting it.
 
@@ -298,10 +331,8 @@ Some things I'd like to add eventually:
 
 - more search sources
 - better result ranking
-- stronger identity correlation
-- more extractors
-- better URL handling
-- more useful confidence scoring
+- stronger identity correlation (more signals than names, links, websites and emails)
+- live-verified field mappings for more platforms
 - probably several bugs I haven't discovered yet
 
 The roadmap is subject to change because this project is being developed by one person who occasionally gets distracted by completely unrelated shit.

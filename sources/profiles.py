@@ -99,7 +99,7 @@ PROBES = {**PAGE_PROBES, **API_PROBES}
 DEFAULT_ORDER = [
     "GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram",
     "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg",
-    "Mastodon", "Gravatar",
+    "Mastodon", "Gravatar", "Codeberg",
 ]
 
 
@@ -170,6 +170,8 @@ def _api_label(response: dict, found: bool) -> str:
         return "FOUND"
     if response["ok"] or response["status"] in (400, 404):
         return "-"
+    if response["status"] in (401, 403, 429):
+        return f"blocked (HTTP {response['status']}: site refuses automated requests)"
     return f"?  ({response['error']})"
 
 

@@ -27,7 +27,7 @@
   },
   "profiles": {
     "enabled": true,
-    "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram", "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Codeberg", "Mastodon", "Gravatar"],
+    "platforms": ["GitHub", "GitLab", "Habr", "Keybase", "DEV", "Pikabu", "Telegram", "HackerNews", "DockerHub", "Bluesky", "Lichess", "Chess.com", "Mastodon", "Gravatar"],
     "github_api": true,
     "workers": 6,
     "try_variants": true
@@ -51,6 +51,9 @@
   },
   "http": {
     "timeout": 10,
-    "retries": 2
+    "retries": 2,
+    "max_requests_per_run": 100,
+    "max_total_response_bytes": 20971520,
+    "max_run_seconds": 120
   }
 }
